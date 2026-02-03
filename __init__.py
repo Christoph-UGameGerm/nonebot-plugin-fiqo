@@ -2,6 +2,7 @@ from arclet.alconna import Alconna, Args, MultiVar, StrMulti
 from nonebot import get_plugin_config
 from nonebot.plugin import PluginMetadata
 from nonebot_plugin_alconna import CommandMeta, Match, on_alconna
+from nonebot_plugin_alconna import load_builtin_plugins as load_alconna_builtin_plugins
 
 from .config import Config
 from .resources import Models, Replys
@@ -17,6 +18,9 @@ __plugin_meta__ = PluginMetadata(
 )
 
 plugin_config = get_plugin_config(Config)
+
+
+load_alconna_builtin_plugins("help")
 
 # Responders
 """
