@@ -4,7 +4,7 @@ import httpx
 from nonebot import get_driver, logger
 from pydantic import BaseModel
 
-from . import Exceptions
+from . import exception
 
 
 class FioEndpoint(BaseModel):
@@ -59,9 +59,10 @@ class FioClient:
             response = await self._request(endpoint, params=params)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == httpx.codes.BAD_REQUEST:
-                raise Exceptions.WrongMaterialTickerError(material_tickers) from e
+                raise exception.WrongMaterialTickerError(material_tickers) from e
+            raise
         except httpx.RequestError as e:
-            raise Exceptions.BadConnectionError(str(e)) from e
+            raise exception.BadConnectionError(str(e)) from e
         else:
             return response
 

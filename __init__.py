@@ -4,11 +4,10 @@ from nonebot.plugin import PluginMetadata
 from nonebot_plugin_alconna import CommandMeta, Match, UniMessage, on_alconna
 from nonebot_plugin_alconna import load_builtin_plugins as load_alconna_builtin_plugins
 
+from . import exception, model, reply
+from .ast_eval import safe_eval_four_ops
 from .config import Config
-from .resources import Models, Replys
-from .utils import Exceptions
-from .utils.ast_eval import safe_eval_four_ops
-from .utils.FioClient import fio_service
+from .fio_client import fio_service
 
 __plugin_meta__ = PluginMetadata(
     name="nonebot_plugin_FIQO",
@@ -42,7 +41,7 @@ fiqo_lorem = on_alconna(
 async def handle_fiqo_lorem() -> None:
     logger.debug("lorem command received.")
     await fiqo_lorem.finish(
-        UniMessage.text(Replys.LOREM)
+        UniMessage.text(reply.LOREM)
     )
 
 """
@@ -78,10 +77,10 @@ async def handle_fiqo_math_calculation(expression: str) -> None:
         result = safe_eval_four_ops(expression)
         logger.debug(f"Calculated result: {result}")
         await fiqo_math.finish(UniMessage.text(f"计算结果为：{result}"))
-    except Exceptions.UnsupportedOperatorError as e:
+    except exception.UnsupportedOperatorError as e:
         logger.debug(f"Unsupported operator error: {e}")
         await fiqo_math.finish(UniMessage.text(f"不支持的运算符：{e}"))
-    except Exceptions.EvaluationError as e:
+    except exception.EvaluationError as e:
         logger.debug(f"Evaluation error: {e}")
         await fiqo_math.finish(UniMessage.text(f"计算错误，请检查表达式：{e}"))
 
@@ -126,13 +125,13 @@ async def handle_fiqo_mat_query(tickers: list[str]) -> None:
         else:
             for info in raw_material_info_list:
                 response.text("\n-------------------\n")
-                material = Models.MaterialInfo.model_validate(info)
+                material = model.MaterialInfo.model_validate(info)
                 logger.debug(f"Parsed material info: {material}")
                 response.text(str(material))
-    except Exceptions.WrongMaterialTickerError as e:
+    except exception.WrongMaterialTickerError as e:
         logger.debug(f"Wrong material ticker error: {e}")
         await fiqo_mat.send(UniMessage.text(f"错误的材料代码：{e}"))
-    except Exceptions.BadConnectionError as e:
+    except exception.BadConnectionError as e:
         logger.error(f"Bad connection error: {e}")
         await fiqo_mat.send(UniMessage.text(f"连接 FIO 服务时出错：{e}"))
     except Exception as e:

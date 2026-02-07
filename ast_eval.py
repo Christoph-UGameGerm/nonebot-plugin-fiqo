@@ -1,7 +1,7 @@
 import ast
 import operator
 
-from .Exceptions import EvaluationError, UnsupportedOperatorError
+from .exception import EvaluationError, UnsupportedOperatorError
 
 operators = {
     ast.Add: operator.add,
