@@ -8,6 +8,7 @@ from . import exception, model, reply
 from .ast_eval import safe_eval_four_ops
 from .config import Config
 from .fio_client import fio_service
+from .weblate_term_provider import weblate_provider
 
 __plugin_meta__ = PluginMetadata(
     name="nonebot_plugin_FIQO",
@@ -65,23 +66,23 @@ fiqo_math = on_alconna(
 
 @fiqo_math.handle()
 async def handle_fiqo_math(expression: Match[str]) -> None:
-    logger.debug("math command received.")
+    logger.info("math command received.")
     if expression.available:
         expression_without_spaces = "".join(expression.result.split())
         fiqo_math.set_path_arg("expression", expression_without_spaces)
 
 @fiqo_math.got_path("expression", prompt="请输入要计算的数学表达式！")
 async def handle_fiqo_math_calculation(expression: str) -> None:
-    logger.debug(f"Received math expression to evaluate: {expression}")
+    logger.info(f"Received math expression to evaluate: {expression}")
     try:
         result = safe_eval_four_ops(expression)
-        logger.debug(f"Calculated result: {result}")
+        logger.info(f"Calculated result: {result}")
         await fiqo_math.finish(UniMessage.text(f"计算结果为：{result}"))
     except exception.UnsupportedOperatorError as e:
-        logger.debug(f"Unsupported operator error: {e}")
+        logger.error(f"Unsupported operator error: {e}")
         await fiqo_math.finish(UniMessage.text(f"不支持的运算符：{e}"))
     except exception.EvaluationError as e:
-        logger.debug(f"Evaluation error: {e}")
+        logger.error(f"Evaluation error: {e}")
         await fiqo_math.finish(UniMessage.text(f"计算错误，请检查表达式：{e}"))
 
 """
@@ -116,28 +117,44 @@ async def handle_fiqo_mat_query(tickers: list[str]) -> None:
     logger.debug(f"Received query request for material tickers: {tickers}")
     response: UniMessage = UniMessage.text("物品信息：")
     try:
-        raw_material_info_list = await fio_service.get_material_info(tickers)
-        logger.debug(f"Received material info response: {raw_material_info_list}")
-        if not raw_material_info_list:
-            await fiqo_mat.send(
-                response.text("未找到对应的材料信息，请检查材料代码是否正确。")
+        fio_response_list = await fio_service.get_material_info(tickers)
+        fio_categories = await fio_service.get_material_categories()
+        logger.debug(f"Received material info response: {fio_response_list}")
+        if len(fio_response_list) < len(tickers):
+            response.text("未找到部分材料信息，请检查材料代码是否正确。")
+        for fio_info in fio_response_list:
+            response.text("\n-------------------\n")
+
+            logger.info(f"Fetching i18n terms for material: {fio_info.ticker}")
+            material_desc = await weblate_provider.get_material_description(
+                fio_info.ticker, fio_info.name
             )
-        else:
-            for info in raw_material_info_list:
-                response.text("\n-------------------\n")
-                material = model.MaterialInfo.model_validate(info)
-                logger.debug(f"Parsed material info: {material}")
-                response.text(str(material))
+            material_name = await weblate_provider.get_material_name(
+                fio_info.ticker, fio_info.name
+            )
+            fio_info.name = material_name
+            logger.info(f"Localized material name: {material_name}")
+            material_category_name = fio_categories.get_category_name(fio_info.category)
+            material_category_name = await weblate_provider.get_material_category(
+                material_category_name)
+            fio_info.category = material_category_name
+
+            material = model.MaterialInfo(
+                **fio_info.model_dump(),
+                desc=material_desc
+            )
+            logger.debug(f"Parsed material info: {material}")
+            response.text(str(material))
     except exception.WrongMaterialTickerError as e:
-        logger.debug(f"Wrong material ticker error: {e}")
-        await fiqo_mat.send(UniMessage.text(f"错误的材料代码：{e}"))
+        logger.error(f"Wrong material ticker error: {e}")
+        response.text(f"错误的材料代码：{e}")
     except exception.BadConnectionError as e:
         logger.error(f"Bad connection error: {e}")
-        await fiqo_mat.send(UniMessage.text(f"连接 FIO 服务时出错：{e}"))
+        response.text(f"连接 FIO 服务时出错：{e}")
     except Exception as e:
         logger.error(f"Unexpected error occurred: {e}")
-        await fiqo_mat.send(UniMessage.text(f"发生错误：{e}"))
+        response.text(f"发生错误：{e}")
         raise
     finally:
-        logger.debug("Finish handling mat command.")
+        logger.info(f"Final response for mat command: {response}")
         await fiqo_mat.finish(response)

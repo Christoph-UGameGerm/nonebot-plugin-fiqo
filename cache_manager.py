@@ -6,7 +6,7 @@ from typing import Generic, Optional, TypeVar
 
 import nonebot_plugin_localstore as localstore
 from nonebot import logger
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -92,7 +92,7 @@ class CacheManager:
                          f" ticker '{ticker}'."
                          f" Cache item: {cache_item}")
         except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError,
-                json.JSONDecodeError, ValueError, TypeError) as e:
+                json.JSONDecodeError, ValueError, TypeError, ValidationError) as e:
             logger.error(f"Error reading cache file for {data_type.__name__}"
                          f" ticker '{ticker}': {e}."
                          f" Treating as cache miss and clearing cache file.")
