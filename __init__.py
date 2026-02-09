@@ -17,7 +17,7 @@ __plugin_meta__ = PluginMetadata(
     config=Config,
 )
 
-plugin_config = get_plugin_config(Config)
+plugin_config = get_plugin_config(Config).fiqo
 
 
 load_alconna_builtin_plugins("help")
