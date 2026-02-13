@@ -59,15 +59,15 @@ class FIOBuildingResponse(BaseModel):
         outputs:list["FIOBuildingResponse.BuildingCostMaterial"]\
                                     = Field(alias="Outputs")
 
-    ticker:     str     = Field(alias="Ticker")
-    name:       str     = Field(alias="Name")
-    expertise:  str     = Field(alias="Expertise")
-    pioneers:   int     = Field(alias="Pioneers")
-    settlers:   int     = Field(alias="Settlers")
-    technicians:int     = Field(alias="Technicians")
-    engineers:  int     = Field(alias="Engineers")
-    scientists: int     = Field(alias="Scientists")
-    area:       int     = Field(alias="AreaCost")
+    ticker:     str         = Field(alias="Ticker")
+    name:       str         = Field(alias="Name")
+    expertise:  str | None  = Field(alias="Expertise")
+    pioneers:   int         = Field(alias="Pioneers")
+    settlers:   int         = Field(alias="Settlers")
+    technicians:int         = Field(alias="Technicians")
+    engineers:  int         = Field(alias="Engineers")
+    scientists: int         = Field(alias="Scientists")
+    area:       int         = Field(alias="AreaCost")
     cost: list[BuildingCostMaterial]    = Field(alias="Costs")
     recipes: list[BuildingRecipe]       = Field(alias="Recipes")
 
@@ -107,7 +107,7 @@ class BuildingInfo(BaseModel):
     ticker:     str
     name:       str
     desc:       str | None = None
-    expertise:  str
+    expertise:  str | None
     pioneers:   int
     settlers:   int
     technicians:int
@@ -118,6 +118,7 @@ class BuildingInfo(BaseModel):
     recipes:    list[BuildingRecipe]
 
     def __str__(self) -> str:
+        expertise_str = "无" if self.expertise is None else self.expertise
         cost_str = "\n".join(
             [f"  {cost_material.amount} {cost_material.ticker}"
              for cost_material in self.cost]
@@ -129,7 +130,7 @@ class BuildingInfo(BaseModel):
         )
         return (f"代码：{self.ticker}\n"
                 + f"名称：{self.name}\n"
-                + (f"专精：{self.expertise}\n" if self.expertise else "无")
+                + (f"专精：{expertise_str}\n")
                 + (f"先驱者：{self.pioneers}\n" if self.pioneers > 0 else "")
                 + (f"定居者：{self.settlers}\n" if self.settlers > 0 else "")
                 + (f"职技工：{self.technicians}\n" if self.technicians > 0 else "")
@@ -137,7 +138,8 @@ class BuildingInfo(BaseModel):
                 + (f"科学家：{self.scientists}\n" if self.scientists > 0 else "")
                 + f"占地面积：{self.area}\n"
                 + f"建造材料：\n{cost_str}\n"
-                + f"可用配方：\n{recipes_str}")
+                + (f"可用配方：\n{recipes_str}" if recipes_str else "")
+                + (f"描述：{self.desc}" if self.desc else ""))
 
 class WeblateI18nUnit(BaseModel):
     """

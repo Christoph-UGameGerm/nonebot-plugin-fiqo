@@ -133,9 +133,10 @@ async def query_single_building(
         building_info.desc = await weblate_provider.get_building_description(
             fio_info.name
         )
-        building_info.expertise = await weblate_provider.get_expertise(
-            fio_info.expertise
-        )
+        if fio_info.expertise is not None:
+            building_info.expertise = await weblate_provider.get_expertise(
+                fio_info.expertise
+            )
         return model.QueryResult(
             id=ticker,
             info=building_info
