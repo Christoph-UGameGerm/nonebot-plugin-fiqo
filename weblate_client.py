@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 import httpx
 from nonebot import get_driver, get_plugin_config, logger
@@ -40,7 +40,7 @@ extract_results_adapter = TypeAdapter(
 
 # Weblate Client Service
 class WeblateClient:
-    weblate_client: Optional[httpx.AsyncClient] = None
+    weblate_client: httpx.AsyncClient | None = None
 
     def __init__(self,
                  api_token: SecretStr,
@@ -65,6 +65,13 @@ class WeblateClient:
             self.weblate_client = None
 
     async def get_client(self) -> httpx.AsyncClient:
+        """
+        Get the unique global instance of WebLate API client,\
+            create it if it does not exist.
+
+        :return: Global Weblate API client instance
+        :rtype: AsyncClient
+        """
         if self.weblate_client is None:
             self.weblate_client = httpx.AsyncClient(
                 base_url=self.base_url,
@@ -76,7 +83,20 @@ class WeblateClient:
             )
         return self.weblate_client
 
-    async def _request(self, endpoint: str, params: Optional[dict] = None) -> Any:
+    async def _request(self, endpoint: str, params: dict | None = None) -> Any:
+        """
+        Internal method to perform a request to the Weblate API\
+            with provided endpoint and params.
+
+        :param endpoint: API endpoint to request
+        :type endpoint: str
+        :param params: HTTP request parameters for the request
+        :type params: dict | None
+        :return: JSON response from the API
+        :rtype: Any
+        :raises HTTPStatusError: If the response status code indicates an error
+        :raises BadConnectionError: If a network error occurs during the request
+        """
         client = await self.get_client()
         try:
             response = await client.get(endpoint, params=params)
@@ -87,10 +107,21 @@ class WeblateClient:
             raise
         except httpx.RequestError as e:
             logger.error(f"Request error occurred: {e}")
-            raise
+            raise exception.BadConnectionError(str(e)) from e
 
     async def get_units_by_query_string(self, query: str)\
         -> list[model.WeblateI18nUnit]:
+        """
+        Fetch Weblate translation units based on the query string.
+
+        :param query: Query string to search for translation units,\
+            follow Weblate's search syntax
+        :type query: str
+        :return: List of WeblateI18nUnit matching the query
+        :rtype: list[WeblateI18nUnit]
+        :raises I18nFetchError: If an error occurs while fetching the units
+        :raises BadConnectionError: If a network error occurs during the request
+        """
         logger.debug(f"Fetching Weblate translation units for query: {query}")
         endpoint = ENDPOINTS.units
         params = {
@@ -99,12 +130,10 @@ class WeblateClient:
         try:
             response = await self._request(endpoint, params=params)
             response = extract_results_adapter.validate_python(response)
-        except Exception as e:
-            logger.error(f"Error fetching Weblate units for query '{query}': {e}")
-            raise exception.I18nFetchError(
-                query,
-                str(e)
-            ) from e
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Response status error while fetching Weblate units\
+                         for query '{query}': {e}")
+            raise exception.I18nFetchError(query, str(e)) from e
         return response
 
 

@@ -2,7 +2,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 import nonebot_plugin_localstore as localstore
 from nonebot import logger
@@ -65,7 +65,7 @@ class CacheManager:
                     f" ticker: '{ticker}'. Cache file path: {file_path},"
                     f" expires in {expire_in} seconds.")
 
-    def get(self, data_type: type[T], ticker: str) -> Optional[T]:
+    def get(self, data_type: type[T], ticker: str) -> T | None:
         """
         Get cached data for an object with a specific ticker \
             if it exists and is not expired.
