@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
 from typing import Any
 
@@ -53,7 +54,7 @@ class FIOBuildingResponse(BaseModel):
 
     class BuildingRecipe(BaseModel):
         string_representation:  str = Field(alias="BuildingRecipeId")
-        duration_ms:            int = Field(alias="DurationMs")
+        duration:            int = Field(alias="DurationMs")
         inputs: list["FIOBuildingResponse.BuildingCostMaterial"]\
                                     = Field(alias="Inputs")
         outputs:list["FIOBuildingResponse.BuildingCostMaterial"]\
@@ -100,9 +101,26 @@ class BuildingInfo(BaseModel):
 
     class BuildingRecipe(BaseModel):
         string_representation:  str
-        duration_ms:            int
+        duration:               timedelta
         inputs:                 list["BuildingInfo.BuildingCostMaterial"]
         outputs:                list["BuildingInfo.BuildingCostMaterial"]
+
+        @model_validator(mode="before")
+        @classmethod
+        def convert_duration(cls, data: dict) -> dict:
+            data["duration"] = timedelta(milliseconds=data.get("duration", 0))
+            return data
+
+        def get_duration_str(self) -> str:
+            total_seconds = int(self.duration.total_seconds())
+            days, remainder = divmod(total_seconds, 86400)
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            duration_str = f"{days}天 " if days > 0 else ""
+            duration_str += f"{hours}小时 " if hours > 0 else ""
+            duration_str += f"{minutes}分钟 " if minutes > 0 else ""
+            duration_str += f"{seconds}秒" if seconds > 0 else ""
+            return duration_str.strip()
 
     ticker:     str
     name:       str
@@ -124,8 +142,8 @@ class BuildingInfo(BaseModel):
              for cost_material in self.cost]
         )
         recipes_str = "\n".join(
-            [f"  - {recipe.string_representation}\
-             (耗时：{recipe.duration_ms // 1000}秒)"
+            [f"  - {recipe.string_representation}\n"
+             f"    耗时：{recipe.get_duration_str()}"
              for recipe in self.recipes]
         )
         return (f"代码：{self.ticker}\n"
@@ -138,7 +156,7 @@ class BuildingInfo(BaseModel):
                 + (f"科学家：{self.scientists}\n" if self.scientists > 0 else "")
                 + f"占地面积：{self.area}\n"
                 + f"建造材料：\n{cost_str}\n"
-                + (f"可用配方：\n{recipes_str}" if recipes_str else "")
+                + (f"可用配方：\n{recipes_str}\n" if recipes_str else "")
                 + (f"描述：{self.desc}" if self.desc else ""))
 
 class WeblateI18nUnit(BaseModel):

@@ -122,6 +122,25 @@ bui 命令
 支持多个建筑名称查询
 """
 
+fiqo_space = on_alconna(
+    Alconna(
+        "space",
+        Args[
+            "params", StrMulti
+        ],
+        meta=CommandMeta(
+            description="计算材料总体积/重量信息",
+            usage="/space <材料数量> <材料代码>...",
+            example="/space 10 RAT 5 DW"
+        )
+    )
+)
+"""
+space 命令
+计算材料总体积/重量信息
+支持多对材料数量和代码输入
+"""
+
 @fiqo_lorem.handle()
 async def handle_fiqo_lorem(bot: SUPPORTED_BOTS, event: SUPPORTED_MSG_EVENTS) -> None:
     logger.debug("lorem command received.")
@@ -186,7 +205,7 @@ async def handle_fiqo_mat_query(
         categories=fio_categories
     )
     # Run queries through generic handler
-    await handler_helper.handle_generic_query_batch(
+    await handler_helper.generic_batch_query_info_response(
         items=tickers,
         query_func=query_func,
         helper=helper,
@@ -226,7 +245,7 @@ async def handle_fiqo_bui_query(
     # Define query function for a single building
     query_func = handler_helper.query_single_building
     # Run queries through generic handler
-    await handler_helper.handle_generic_query_batch(
+    await handler_helper.generic_batch_query_info_response(
         items=tickers,
         query_func=query_func,
         helper=helper,
@@ -244,3 +263,69 @@ async def handle_fiqo_bui_query(
     else:
         await fiqo_bui.send(response)
     await fiqo_bui.finish()
+
+@fiqo_space.handle()
+async def handle_fiqo_space(params: Match[str]) -> None:
+    logger.debug("space command received.")
+    if params.available:
+        params_list = params.result.split()
+        rev_params_list = params_list[::-1]
+        # Reverse the list into an order of [ticker, (quantity), ...]
+        param_map: dict[str, int] = {}
+        for index, param in enumerate(rev_params_list):
+            if param.isdigit():
+                continue
+            ticker = param.upper()
+            next_idx = index + 1
+            if next_idx < len(rev_params_list) and rev_params_list[next_idx].isdigit():
+                quantity = int(rev_params_list[next_idx])
+            else:
+                quantity = 1
+            param_map[ticker] = quantity
+        fiqo_space.set_path_arg("params", param_map)
+
+@fiqo_space.got_path("params", prompt="请输入材料代码和数量，格式如：10 RAT 5 DW")
+async def handle_fiqo_space_calculation(
+    event: SUPPORTED_MSG_EVENTS,
+    bot: SUPPORTED_BOTS,
+    params: dict[str, int]
+) -> None:
+    logger.debug(f"Received parameters for space calculation: {params}")
+    helper = MessageFormatHelper()
+    helper.add_head("体积重量计算结果：")
+
+    # Define query function for all materials involved in the calculation
+    query_func = partial(
+        handler_helper.query_single_material,
+        categories=None  # No need for categories in space calculation
+    )
+    # Run queries through generic handler
+    results = await handler_helper.generic_batch_query_error_response_only(
+        items=list(params.keys()),
+        query_func=query_func,
+        item_type_localized="材料",
+        helper=helper
+    )
+
+    weight_sum = 0.0
+    volume_sum = 0.0
+    for r in results:
+        if r.error_type is None and isinstance(r.info, model.MaterialInfo):
+            quantity = params[r.id]
+            weight_sum += r.info.weight * quantity
+            volume_sum += r.info.volume * quantity
+
+    helper.add_core(f"总重量: {round(weight_sum, 2)} t/吨\n"
+                    f"总体积: {round(volume_sum, 2)} m³/立方米")
+
+    # Construct the final response message
+    response = helper.construct_formal_response()
+    logger.info(f"Final response for space command: {response}")
+
+    # Decide sending method based on response length and content, and send the response
+    if not response.only(Text) or\
+        len(response.extract_plain_text()) > plugin_config.longest_single_response:
+        await try_send_grouped_forward_msg(event, bot, response)
+    else:
+        await fiqo_space.send(response)
+    await fiqo_space.finish()
