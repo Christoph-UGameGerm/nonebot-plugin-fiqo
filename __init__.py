@@ -143,6 +143,25 @@ space 命令
 支持多对材料数量和代码输入
 """
 
+fiqo_fit = on_alconna(
+    Alconna(
+        "fit",
+        Args["params", StrMulti],
+        Option("-w|--weight", Args["target_weight", int]),
+        Option("-v|--volume", Args["target_volume", int]),
+        meta=CommandMeta(
+            description="计算材料容纳量",
+            usage="/fit <材料数量> <材料代码>...",
+            example="/fit 10 RAT 5 DW"
+        )
+    )
+)
+"""
+fit 命令
+计算特定容积/重量限制下最大可携带的材料数量
+支持输入多材料及其数量以限制材料比例
+"""
+
 # ------------------- Handlers ------------------
 
 @fiqo_lorem.handle()
@@ -333,3 +352,78 @@ async def handle_fiqo_space_calculation(
     else:
         await fiqo_space.send(response)
     await fiqo_space.finish()
+
+@fiqo_fit.handle()
+async def handle_fiqo_fit(params: Match[str]) -> None:
+    logger.debug("fit command received.")
+    if params.available:
+        param_map = await handler_helper.format_param_kv_dict(params.result)
+        fiqo_fit.set_path_arg("params", param_map)
+
+@fiqo_fit.got_path("params", prompt="请输入材料代码和数量，格式如：10 RAT 5 DW")
+async def handle_fiqo_fit_calculation(
+    event: SUPPORTED_MSG_EVENTS,
+    bot: SUPPORTED_BOTS,
+    params: dict[str, int],
+    target_weight: Match[int],
+    target_volume: Match[int]
+) -> None:
+    logger.debug(f"Received parameters for fit calculation: {params}")
+    helper = MessageFormatHelper()
+    helper.add_head("材料最大容纳量计算结果：")
+
+    # Define query function for all materials involved in the calculation
+    query_func = partial(
+        handler_helper.query_single_material,
+        categories=None  # No need for categories in fit calculation
+    )
+    # Run queries through generic handler
+    results = await handler_helper.generic_batch_query_error_response_only(
+        items=list(params.keys()),
+        query_func=query_func,
+        item_type_localized="材料",
+        helper=helper
+    )
+
+    # Prompt user the entered ratio of materials
+    material_ratios = [f"{params[r.id]} {r.id}" for r in results\
+                       if r.id in params and r.error_type is None]
+    helper.add_head("材料比例: \n" + " : ".join(material_ratios))
+
+    weight_sum = 0.0
+    volume_sum = 0.0
+    for r in results:
+        if r.error_type is None and isinstance(r.info, model.MaterialInfo):
+            quantity = params[r.id]
+            weight_sum += r.info.weight * quantity
+            volume_sum += r.info.volume * quantity
+    weight_capacity = target_weight.result / weight_sum\
+        if weight_sum > 0 else float("inf")
+    volume_capacity = target_volume.result / volume_sum\
+        if volume_sum > 0 else float("inf")
+
+    max_fit_portion = int(min(weight_capacity, volume_capacity))
+    fit_message_list = [
+        f"最大携带份数: {max_fit_portion}",
+    ]
+
+    helper.add_core("\n".join(fit_message_list))
+
+    if weight_capacity < volume_capacity:
+        helper.add_core("受重量限制")
+    elif volume_capacity < weight_capacity:
+        helper.add_core("受体积限制")
+    else:
+        helper.add_core("同时受重量和体积限制")
+
+
+    # Construct the final response message
+    response = helper.construct_formal_response()
+    logger.info(f"Final response for fit command: {response}")
+    # Decide sending method based on response length and content, and send the response
+    if not response.only(Text) or\
+        len(response.extract_plain_text()) > plugin_config.longest_single_response:
+        await try_send_grouped_forward_msg(event, bot, response)
+    else:
+        await fiqo_fit.send(response)
+    await fiqo_fit.finish()
