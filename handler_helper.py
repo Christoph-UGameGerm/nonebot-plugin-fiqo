@@ -211,3 +211,31 @@ async def query_single_building(
             info=building_info if building_info is not None else None,
             error_type=QueryErrorType.I18N
         )
+
+async def format_param_kv_dict(param_string: str) -> dict[str, int]:
+    """
+    Helper function to format a parameter string\
+        of the form "key1 value1 key2 value2" into a dictionary.
+    Specifically, when value is missing,\
+        the corresponding value will be set to 1 by default.
+
+    :param param_string: The input parameter string to format.
+    :type param_string: str
+    :return: A dictionary mapping keys to their corresponding integer values.
+    :rtype: dict[str, int]
+    """
+    params_list = param_string.split()
+    rev_params_list = params_list[::-1]
+    # Reverse the list into an order of [ticker, (quantity), ...]
+    param_map: dict[str, int] = {}
+    for index, param in enumerate(rev_params_list):
+        if param.isdigit():
+            continue
+        ticker = param.upper()
+        next_idx = index + 1
+        if next_idx < len(rev_params_list) and rev_params_list[next_idx].isdigit():
+            quantity = int(rev_params_list[next_idx])
+        else:
+            quantity = 1
+        param_map[ticker] = quantity
+    return dict(reversed(list(param_map.items())))

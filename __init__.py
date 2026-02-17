@@ -12,6 +12,7 @@ from nonebot.plugin import PluginMetadata
 from nonebot_plugin_alconna import (
     CommandMeta,
     Match,
+    Option,
     Text,
     UniMessage,
     on_alconna,
@@ -46,7 +47,8 @@ load_alconna_builtin_plugins("help")
 # Permissions
 global_permission = SUPERUSER
 
-# Responders
+# ----------------------- Responders ------------------
+
 fiqo_lorem = on_alconna(
     Alconna(
         "lorem",
@@ -125,9 +127,9 @@ bui 命令
 fiqo_space = on_alconna(
     Alconna(
         "space",
-        Args[
-            "params", StrMulti
-        ],
+        Args["params", StrMulti],
+        Option("-w|--weight", Args["max_weight", int]),
+        Option("-v|--volume", Args["max_volume", int]),
         meta=CommandMeta(
             description="计算材料总体积/重量信息",
             usage="/space <材料数量> <材料代码>...",
@@ -140,6 +142,8 @@ space 命令
 计算材料总体积/重量信息
 支持多对材料数量和代码输入
 """
+
+# ------------------- Handlers ------------------
 
 @fiqo_lorem.handle()
 async def handle_fiqo_lorem(bot: SUPPORTED_BOTS, event: SUPPORTED_MSG_EVENTS) -> None:
@@ -268,27 +272,16 @@ async def handle_fiqo_bui_query(
 async def handle_fiqo_space(params: Match[str]) -> None:
     logger.debug("space command received.")
     if params.available:
-        params_list = params.result.split()
-        rev_params_list = params_list[::-1]
-        # Reverse the list into an order of [ticker, (quantity), ...]
-        param_map: dict[str, int] = {}
-        for index, param in enumerate(rev_params_list):
-            if param.isdigit():
-                continue
-            ticker = param.upper()
-            next_idx = index + 1
-            if next_idx < len(rev_params_list) and rev_params_list[next_idx].isdigit():
-                quantity = int(rev_params_list[next_idx])
-            else:
-                quantity = 1
-            param_map[ticker] = quantity
+        param_map = await handler_helper.format_param_kv_dict(params.result)
         fiqo_space.set_path_arg("params", param_map)
 
 @fiqo_space.got_path("params", prompt="请输入材料代码和数量，格式如：10 RAT 5 DW")
 async def handle_fiqo_space_calculation(
     event: SUPPORTED_MSG_EVENTS,
     bot: SUPPORTED_BOTS,
-    params: dict[str, int]
+    params: dict[str, int],
+    max_weight: Match[int],
+    max_volume: Match[int]
 ) -> None:
     logger.debug(f"Received parameters for space calculation: {params}")
     helper = MessageFormatHelper()
@@ -315,8 +308,19 @@ async def handle_fiqo_space_calculation(
             weight_sum += r.info.weight * quantity
             volume_sum += r.info.volume * quantity
 
-    helper.add_core(f"总重量: {round(weight_sum, 2)} t/吨\n"
-                    f"总体积: {round(volume_sum, 2)} m³/立方米")
+    core_message_list = [
+        f"总重量: {round(weight_sum, 2)} t/吨",
+        f"总体积: {round(volume_sum, 2)} m³/立方米"
+    ]
+
+    if max_weight.available:
+        remaining_weight = max_weight.result - weight_sum
+        core_message_list.append(f"剩余重量: {round(remaining_weight, 2)} t/吨")
+    if max_volume.available:
+        remaining_volume = max_volume.result - volume_sum
+        core_message_list.append(f"剩余体积: {round(remaining_volume, 2)} m³/立方米")
+
+    helper.add_core("\n".join(core_message_list))
 
     # Construct the final response message
     response = helper.construct_formal_response()
