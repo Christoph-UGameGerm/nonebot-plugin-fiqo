@@ -1,4 +1,5 @@
 import math
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -182,6 +183,60 @@ class CXMaterialDTO(BaseModel):
         )
 
 
+class BasePlanetDTO(BaseModel):
+    natrual_id: str
+    name: str
+
+
+class OfficePlanetDTO(BaseModel):
+    natrual_id: str
+    name: str
+
+
+class UserAndCompanyDTO(BaseModel):
+    user_id: str
+    company_id: str
+    username: str
+    subscription_level: str
+    company_name: str
+    company_code: str
+    corporation_name: str | None
+    corporation_code: str | None
+    rating: str
+    created_days: int
+    faction: str
+    base_counts: int
+    bases: list[BasePlanetDTO]
+    offices: list[OfficePlanetDTO]
+
+    @classmethod
+    def from_fio_response(cls, response: "FIOUsrAndCoResponse") -> "UserAndCompanyDTO":
+        return cls(
+            user_id=response.user_id,
+            company_id=response.company_id,
+            username=response.username,
+            subscription_level=response.subscription_level
+            if response.subscription_level
+            else "TRIAL",
+            company_name=response.company_name,
+            company_code=response.company_code,
+            corporation_name=response.corporation_name,
+            corporation_code=response.corporation_code,
+            rating=response.rating,
+            created_days=response.created_days,
+            faction=response.faction,
+            base_counts=response.base_counts,
+            bases=[
+                BasePlanetDTO(natrual_id=base.natrual_id, name=base.name)
+                for base in response.bases
+            ],
+            offices=[
+                OfficePlanetDTO(natrual_id=office.natrual_id, name=office.name)
+                for office in response.current_offices
+            ],
+        )
+
+
 # =============================================
 # Inbound API Models
 # =============================================
@@ -310,6 +365,71 @@ class FIOCXResponse(BaseModel):
         if value is None:
             return 0
         return value
+
+
+class FIOBasePlanetResponse(BaseModel):
+    natrual_id: str = Field(alias="PlanetNaturalId")
+    name: str = Field(alias="PlanetName")
+
+
+class FIOOfficePlanetResponse(BaseModel):
+    natrual_id: str = Field(alias="PlanetNaturalId")
+    name: str = Field(alias="PlanetName")
+
+
+class FIOUsrAndCoResponse(BaseModel):
+    user_id: str = Field(alias="UserId")
+    company_id: str = Field(alias="CompanyId")
+    username: str = Field(alias="UserName")
+    subscription_level: str | None = Field(alias="SubscriptionLevel")
+    company_name: str = Field(alias="CompanyName")
+    company_code: str = Field(alias="CompanyCode")
+    corporation_name: str | None = Field(alias="CorporationName")
+    corporation_code: str | None = Field(alias="CorporationCode")
+    rating: str = Field(alias="OverallRating")
+    created_days: int
+    faction: str = Field(alias="CountryCode")
+    base_counts: int
+    bases: list[FIOBasePlanetResponse] = Field(alias="Planets")
+    current_offices: list[FIOOfficePlanetResponse] = Field(alias="Offices")
+
+    @model_validator(mode="before")
+    @classmethod
+    def calculate_created_days(cls, data: dict) -> dict:
+        if isinstance(data, dict) and "CreatedEpochMs" in data:
+            created_epoch_ms = data.get("CreatedEpochMs", 0)
+            created_days = timedelta(
+                milliseconds=(time.time() * 1000 - created_epoch_ms)
+            ).days
+            data["created_days"] = created_days
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def count_and_order_bases(cls, data: dict) -> dict:
+        if isinstance(data, dict) and "Planets" in data:
+            data["base_counts"] = len(data.get("Planets", []))
+            data["Planets"] = sorted(
+                data.get("Planets", []),
+                key=lambda planet: planet.get("PlanetNaturalId", ""),
+            )
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_outdated_and_order_offices(cls, data: dict) -> dict:
+        if isinstance(data, dict) and "Offices" in data:
+            current_time = time.time() * 1000
+            valid_offices = [
+                o
+                for o in data.get("Offices", [])
+                if current_time - o.get("EndEpochMs", 0) < 0
+            ]
+            data["Offices"] = sorted(
+                valid_offices,
+                key=lambda office: office.get("OfficeNaturalId", ""),
+            )
+        return data
 
 
 class I18nDictDTO(BaseModel):

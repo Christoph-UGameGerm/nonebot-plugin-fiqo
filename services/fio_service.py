@@ -1,13 +1,22 @@
+import asyncio
+from typing import Literal
+
 from nonebot import logger
+from pydantic import BaseModel
 
 from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.api import fio_client
+from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import plugin_config
+from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+    WrongUsernameOrCompanyTickerError,
+)
 from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import (
     BuildingDTO,
     CXMaterialDTO,
     MaterialDTO,
     RecipeDTO,
+    UserAndCompanyDTO,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils.formatters import (
+from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import (
     global_formatter,
 )
 
@@ -38,16 +47,20 @@ class FIOService:
         return "\n".join([line for line in lines if line])
 
     @staticmethod
-    async def get_material_info(ticker: str) -> str:
+    async def get_material_dto(ticker: str) -> MaterialDTO:
         fio_response = await fio_client.get_material_info(ticker)
         info = MaterialDTO.from_fio_response(fio_response)
-        logger.info(f"Fetched material info for {ticker=}: {fio_response=}")
         info.name = await i18n_service.get_material_i18n_name(fio_response.name)
         info.category = await i18n_service.get_material_i18n_category(
             fio_response.category
         )
         info.desc = await i18n_service.get_material_i18n_desc(fio_response.name)
-        return global_formatter.format_material(info)
+        return info
+
+    @staticmethod
+    async def get_material_info(ticker: str) -> str:
+        dto = await FIOService.get_material_dto(ticker)
+        return global_formatter.format_material(dto)
 
     @staticmethod
     async def get_material_info_with_recipes(ticker: str) -> str:
@@ -56,19 +69,89 @@ class FIOService:
         return material_response + "\n" + recipe_response
 
     @staticmethod
-    async def get_building_info(ticker: str) -> str:
+    async def get_building_dto(ticker: str) -> BuildingDTO:
         fio_response = await fio_client.get_building_info(ticker)
         info = BuildingDTO.from_fio_response(fio_response)
-        logger.info(f"Fetched building info for {ticker=}: {fio_response=}")
         info.name = await i18n_service.get_building_i18n_name(fio_response.name)
         info.desc = await i18n_service.get_building_i18n_desc(fio_response.name)
         info.expertise = await i18n_service.get_expertise_name(fio_response.expertise)
-        return global_formatter.format_building(info)
+        return info
+
+    @staticmethod
+    async def get_building_info(ticker: str) -> str:
+        dto = await FIOService.get_building_dto(ticker)
+        return global_formatter.format_building(dto)
+
+    @staticmethod
+    async def get_exchange_material_dto(ticker: str) -> CXMaterialDTO:
+        fio_response = await fio_client.get_cx_material_info(ticker)
+        return CXMaterialDTO.from_fio_response(fio_response)
 
     @staticmethod
     async def get_exchange_material_info(ticker: str, order_no: int) -> str:
-        fio_response = await fio_client.get_cx_material_info(ticker)
-        info = CXMaterialDTO.from_fio_response(fio_response)
-        return global_formatter.format_cx_material(info, order_no)
+        dto = await FIOService.get_exchange_material_dto(ticker)
+        return global_formatter.format_cx_material(dto, order_no)
+
+    @staticmethod
+    async def get_user_and_company_dto(
+        username: str | None = None,
+        company_code: str | None = None,
+        company_name: str | None = None,
+    ) -> UserAndCompanyDTO:
+        if username:
+            fio_response = await fio_client.get_user_and_company_info(username=username)
+        elif company_code:
+            fio_response = await fio_client.get_user_and_company_info(
+                company_code=company_code
+            )
+        elif company_name:
+            fio_response = await fio_client.get_user_and_company_info(
+                company_name=company_name
+            )
+        else:
+            raise WrongUsernameOrCompanyTickerError("未知")
+        return UserAndCompanyDTO.from_fio_response(fio_response)
+
+    @staticmethod
+    async def get_user_and_company_info(
+        username: str | None = None,
+        company_code: str | None = None,
+        company_name: str | None = None,
+    ) -> str:
+        info = await FIOService.get_user_and_company_dto(
+            username=username, company_code=company_code, company_name=company_name
+        )
+        return global_formatter.format_user_company_info(info)
+
+    @staticmethod
+    async def identify_user_company_token(
+        ticker: str,
+        index: int,
+    ) -> tuple[str, list[tuple[str, UserAndCompanyDTO | None]]]:
+        ticker_upper = ticker.upper()
+        if index == 0 and ticker_upper in plugin_config.game.all_ingame_fas:
+            return (ticker, [("派系", None)])
+
+        matches = []
+
+        tasks = [
+            FIOService.get_user_and_company_dto(username=ticker),
+            FIOService.get_user_and_company_dto(company_code=ticker_upper),
+            FIOService.get_user_and_company_dto(company_name=ticker),
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        username_res, company_code_res, company_name_res = results
+        if not isinstance(username_res, Exception) and username_res is not None:
+            matches.append(("用户名", username_res))
+        if not isinstance(company_code_res, Exception) and company_code_res is not None:
+            matches.append(("公司代码", company_code_res))
+        if not isinstance(company_name_res, Exception) and company_name_res is not None:
+            matches.append(("公司名称", company_name_res))
+
+        if not matches:
+            matches.append(("未知", None))
+
+        return (ticker, matches)
+
 
 fio_service = FIOService()

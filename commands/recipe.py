@@ -15,7 +15,7 @@ fiqo_recipe = on_alconna(
         "recipe",
         Args["ticker#物品代码", StrMulti],
         meta=CommandMeta(
-            description="查询配方信息",
+            description="[普通用户] 查询配方信息",
             usage="/recipe <ticker>",
             example="/recipe RAT",
         ),

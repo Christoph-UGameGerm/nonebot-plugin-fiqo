@@ -33,7 +33,7 @@ fiqo_exchange = on_alconna(
             default=False,
         ),
         meta=CommandMeta(
-            description="查询交易所物品信息",
+            description="[普通用户] 查询交易所物品信息",
             usage="/cx <ticker>",
             example="/cx RAT",
         ),

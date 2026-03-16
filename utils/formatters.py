@@ -1,8 +1,10 @@
 import datetime
 import math
+import re
 from collections import defaultdict
 from datetime import timedelta
 
+from nonebot import logger
 from nonebot_plugin_alconna import UniMessage
 
 from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo import (
@@ -13,19 +15,27 @@ from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import (
     plugin_config,
 )
 from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import (
+    BasePlanetDTO,
     BuildingDTO,
     CostMaterialDTO,
     CXMaterialDTO,
     CXOrder,
     MaterialDTO,
+    OfficePlanetDTO,
     RecipeDTO,
     ServiceResult,
+    UserAndCompanyDTO,
 )
 
 
 class Formatter:
     def __init__(self, config: FormatConfig) -> None:
         self.config = config
+
+    def clean_and_partition_group_nickname(self, nickname: str) -> list[str]:
+        cleaned = re.sub(r"[(（][^|)）]*([|)）]|$)", "|", nickname)
+        return [name.strip() for name in cleaned.split("|") if name.strip()]
+
 
     def format_timedelta(self, td: timedelta) -> str:
         total_seconds = int(td.total_seconds())
@@ -165,6 +175,53 @@ class Formatter:
         ]
         return "\n".join(filter(None, lines))
 
+    def format_planet_name(self, natrual_id: str, name: str) -> str:
+        return natrual_id + " - " + name if name != natrual_id else natrual_id
+
+    def format_base_list(self, bases: list[BasePlanetDTO]) -> str:
+        return "\n".join(
+            self.config.list_item_lead
+            + f"{self.format_planet_name(base.natrual_id, base.name)}"
+            for base in bases
+        )
+
+    def format_office_list(self, offices: list[OfficePlanetDTO]) -> str:
+        return "\n".join(
+            self.config.list_item_lead
+            + f"{self.format_planet_name(office.natrual_id, office.name)}"
+            for office in offices
+        )
+
+    def format_user_company_info(self, data: UserAndCompanyDTO) -> str:
+        lines = [
+            f"用户名：{data.username}",
+            f"订阅等级：{data.subscription_level}",
+            f"公司名称：{data.company_name}",
+            f"公司代码：{data.company_code}",
+            f"集团名称：{data.corporation_name}" if data.corporation_name else None,
+            f"集团代码：{data.corporation_code}" if data.corporation_code else None,
+            f"公司评级：{data.rating}",
+            f"创建天数：{data.created_days}",
+            f"派系代码：{data.faction}",
+            f"基地数量：{data.base_counts}",
+            "基地列表：" if data.bases else None,
+            self.format_base_list(data.bases) if data.bases else None,
+            "在以下行星任管理者：" if data.offices else None,
+            self.format_office_list(data.offices) if data.offices else None,
+        ]
+        return "\n".join(filter(None, lines))
+
+    def format_user_company_key_info(self, data: UserAndCompanyDTO) -> str:
+        lines = [
+            f"用户名：{data.username}",
+            f"公司名称：{data.company_name}",
+            f"公司代码：{data.company_code}",
+            f"派系代码：{data.faction}",
+            f"订阅等级：{data.subscription_level}",
+            f"创建天数：{data.created_days}",
+        ]
+        return "\n".join(lines)
+
     def format_service_result(
         self, result: ServiceResult, header: str, sep: str = "\n\n"
     ) -> UniMessage:
@@ -183,6 +240,10 @@ class Formatter:
 
         grouped_warnings = defaultdict(list)
         for warning in warnings:
+            logger.warning(
+                f"Service returned warning: {warning=}\n"
+                + f"Caused by: {type(warning.__cause__).__name__}: {warning.__cause__}"
+            )
             grouped_warnings[type(warning)].append(warning)
 
         warning_summary = ["存在以下问题："]

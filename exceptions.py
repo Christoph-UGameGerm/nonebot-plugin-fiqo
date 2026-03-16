@@ -50,6 +50,10 @@ class WrongRecipeTickerError(ResourceNotFoundError):
     def __init__(self, ticker: str) -> None:
         super().__init__("配方代码", ticker)
 
+class WrongUsernameOrCompanyTickerError(ResourceNotFoundError):
+    def __init__(self, ticker: str) -> None:
+        super().__init__("用户名、公司名或代码", ticker)
+
 
 class CategoryNotFoundError(ResourceNotFoundError):
     def __init__(self, category: str = "") -> None:

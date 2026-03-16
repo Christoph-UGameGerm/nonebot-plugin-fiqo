@@ -94,9 +94,8 @@ fiqo_perm = on_alconna(
     Alconna(
         "perm",
         meta=CommandMeta(
-            description="检查权限组",
+            description="[无权限要求] 查看权限组",
             usage="/perm",
-            hide=True,
         ),
     )
 )
@@ -125,14 +124,14 @@ async def _(event: Event, bot: Bot) -> None:
     if is_admin:
         groups.append("开发组")
     if is_superuser:
-        groups.append("超级用户")
-    groups.append(f"  白名单：{'是' if in_superuser_whitelist else '否'}")
-    groups.append(f"  群管理：{'是' if is_group_admin else '否'}")
+        groups.append("超级用户" + ("，继承自开发组" if is_admin else ""))
+        groups.append(f"  白名单：{'是' if in_superuser_whitelist else '否'}")
+        groups.append(f"  群管理：{'是' if is_group_admin else '否'}")
     if is_testuser:
-        groups.append("测试用户")
-    groups.append(f"  白名单：{'是' if in_testuser_whitelist else '否'}")
+        groups.append("测试用户" + ("，继承自超级用户" if is_superuser else ""))
+        groups.append(f"  白名单：{'是' if in_testuser_whitelist else '否'}")
     if is_normaluser:
-        groups.append("普通用户")
+        groups.append("普通用户" + ("，继承自测试用户" if is_testuser else ""))
     groups.append(f"  群管理：{'是' if is_group_admin else '否'}")
     groups.append(f"  群头衔：{'有' if group_title_exists else '无'}")
     groups.append(f"  群等级：{'足够' if group_level_enough else '不足'}")

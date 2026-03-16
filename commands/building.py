@@ -15,7 +15,7 @@ fiqo_building = on_alconna(
         "bui",
         Args["ticker#建筑代码", StrMulti],
         meta=CommandMeta(
-            description="查询建筑信息",
+            description="[普通用户] 查询建筑信息",
             usage="/bui <ticker>",
             example="/bui FRM",
         ),

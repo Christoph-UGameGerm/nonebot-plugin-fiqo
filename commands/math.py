@@ -16,7 +16,7 @@ fiqo_math = on_alconna(
         "math",
         Args["expression#表达式", StrMulti],
         meta=CommandMeta(
-            description="计算数学表达式的值",
+            description="[普通用户] 计算数学表达式的值",
             usage="/math <expression>",
             example="/math 2 + 2 * (3 - 1)",
         ),

@@ -27,7 +27,7 @@ fiqo_material = on_alconna(
             "-r|--recipes", help_text="同时查询配方", action=store_true, default=False
         ),
         meta=CommandMeta(
-            description="查询材料信息",
+            description="[普通用户] 查询材料信息",
             usage="/mat <ticker>",
             example="/mat RAT",
         ),

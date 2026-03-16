@@ -1,4 +1,4 @@
-from nonebot import get_driver
+from nonebot import get_driver, logger
 from pydantic import BaseModel
 
 from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.api import BaseClient
@@ -7,12 +7,14 @@ from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
     WrongCXTickerError,
     WrongMaterialTickerError,
     WrongRecipeTickerError,
+    WrongUsernameOrCompanyTickerError,
 )
 from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import (
     FIOBuildingResponse,
     FIOCXResponse,
     FIOMaterialResponse,
     FIORecipeResponse,
+    FIOUsrAndCoResponse,
 )
 
 
@@ -22,6 +24,9 @@ class FioEndpoint(BaseModel):
     building: str = "/building/"
     cx: str = "/exchange/"
     recipes: str = "/recipes/"
+    co_usr_username: str = "/user/"
+    co_usr_company_code: str = "/company/code/"
+    co_usr_company_name: str = "/company/name/"
 
 
 ENDPOINTS = FioEndpoint()
@@ -69,6 +74,37 @@ class FioClient(BaseClient):
             params={"include_buy_orders": "true", "include_sell_orders": "true"},
             not_found_error=WrongCXTickerError(ticker),
             ttl=60,
+        )
+
+    async def get_user_and_company_info(
+        self,
+        username: str | None = None,
+        company_name: str | None = None,
+        company_code: str | None = None,
+    ) -> FIOUsrAndCoResponse:
+        not_found_error = WrongUsernameOrCompanyTickerError(
+            username or company_name or company_code or "未知"
+        )
+        if username:
+            endpoint = f"{ENDPOINTS.co_usr_username}{username}"
+            cache_key = f"fio:username:{username}"
+        elif company_code:
+            endpoint = f"{ENDPOINTS.co_usr_company_code}{company_code}"
+            cache_key = f"fio:co_code:{company_code}"
+        elif company_name:
+            endpoint = f"{ENDPOINTS.co_usr_company_name}{company_name}"
+            cache_key = f"fio:co_name:{company_name}"
+        else:
+            raise not_found_error
+        return await self.request(
+            key_and_model=(
+                cache_key,
+                FIOUsrAndCoResponse,
+            ),
+            endpoint=endpoint,
+            params=None,
+            not_found_error=not_found_error,
+            ttl=None,
         )
 
 
