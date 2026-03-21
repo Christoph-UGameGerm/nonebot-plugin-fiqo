@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from nonebot_plugin_fiqo import exceptions
+from . import exceptions
 
 # =============================================
 # Core DTOs

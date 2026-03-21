@@ -1,7 +1,6 @@
 from nonebot import get_driver
 from pydantic import BaseModel
 
-from nonebot_plugin_fiqo.api import BaseClient
 from nonebot_plugin_fiqo.models import (
     FIOCXResponse,
     FIORecipeResponse,
@@ -16,6 +15,8 @@ from nonebot_plugin_fiqo.exceptions import (
     WrongMaterialTickerError,
     WrongUsernameOrCompanyTickerError,
 )
+
+from .base_client import BaseClient
 
 
 class FioEndpoint(BaseModel):
