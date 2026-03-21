@@ -43,9 +43,7 @@ fiqo_exchange = on_alconna(
 
 
 @fiqo_exchange.handle()
-async def _(
-    ticker: Match[tuple[str, ...]], orders: Match[int]
-) -> None:
+async def _(ticker: Match[tuple[str, ...]], orders: Match[int]) -> None:
     ticker_list = [t.strip().upper() for t in ticker.result]
     worker = partial(fio_service.get_exchange_material_info, order_no=orders.result)
     result = await execute_batch(ticker_list, worker)

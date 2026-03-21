@@ -6,7 +6,6 @@ from nonebot_plugin_fiqo.exceptions import (
 
 
 class I18nService:
-
     @property
     def _weblate_authorized(self) -> bool:
         return bool(plugin_config.weblate.api_token)

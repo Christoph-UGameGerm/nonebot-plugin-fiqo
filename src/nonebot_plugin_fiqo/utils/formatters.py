@@ -36,7 +36,6 @@ class Formatter:
         cleaned = re.sub(r"[(（][^|)）]*([|)）]|$)", "|", nickname)
         return [name.strip() for name in cleaned.split("|") if name.strip()]
 
-
     def format_timedelta(self, td: timedelta) -> str:
         total_seconds = int(td.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)

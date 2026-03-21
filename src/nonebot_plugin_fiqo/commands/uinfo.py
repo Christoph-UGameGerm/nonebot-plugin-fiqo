@@ -43,7 +43,9 @@ async def _(param: Arparma) -> None:
     if company_code:
         tasks.append(fio_service.get_user_and_company_info(company_code=company_code))
     if company_name_str:
-        tasks.append(fio_service.get_user_and_company_info(company_name=company_name_str))
+        tasks.append(
+            fio_service.get_user_and_company_info(company_name=company_name_str)
+        )
     if not tasks:
         await fiqo_uinfo.finish("请至少提供用户名、公司代码或公司名称中的一个")
 

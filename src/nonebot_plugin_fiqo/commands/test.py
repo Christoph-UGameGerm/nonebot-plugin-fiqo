@@ -28,6 +28,7 @@ fiqo_test = on_alconna(
     permission=ADMIN,
 )
 
+
 @fiqo_test.handle()
 async def _2(message: str):
     await _(message, None)
@@ -40,6 +41,4 @@ async def _(message: str, img: Image | None):
     if img:
         response += img
 
-    await fiqo_test.finish(
-        response
-    )
+    await fiqo_test.finish(response)

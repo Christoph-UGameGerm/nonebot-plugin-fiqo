@@ -8,6 +8,7 @@ from nonebot_plugin_fiqo.models import ServiceResult
 
 T = TypeVar("T", bound=BaseModel)
 
+
 async def execute_batch(
     items: Iterable[Any], worker: Callable[[Any], Coroutine[Any, Any, str]]
 ) -> ServiceResult:

@@ -24,6 +24,7 @@ fiqo_recipe = on_alconna(
     permission=NORMALUSER,
 )
 
+
 @fiqo_recipe.handle()
 async def _(ticker: str) -> None:
     ticker_list = [t.strip().upper() for t in ticker.split()]
