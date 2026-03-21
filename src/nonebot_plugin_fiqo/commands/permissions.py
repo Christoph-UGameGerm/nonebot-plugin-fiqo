@@ -104,11 +104,26 @@ fiqo_perm = on_alconna(
 @fiqo_perm.handle()
 async def _(event: Event, bot: Bot) -> None:
     groups = []
-    is_group_admin = isinstance(bot, OB11Bot) and await group_admin(bot, event)
-    group_title_exists = isinstance(bot, OB11Bot) and await has_group_title(bot, event)
-    group_level_enough = isinstance(bot, OB11Bot) and await group_level_equal_or_above(
-        bot, event
-    )
+
+    is_group_admin = False
+    group_title_exists = False
+    group_level_enough = False
+
+    if isinstance(bot, OB11Bot):
+        try:
+            user_id = event.get_user_id()
+            group_id = event.get_session_id()
+            if group_id and user_id:
+                info = await get_group_member_info(bot, group_id, user_id)
+                if info is not None:
+                    is_group_admin = info.get("role", "member") in ("owner", "admin")
+                    group_title_exists = bool(info.get("title"))
+                    group_level_enough = (
+                        int(info.get("level", "0"))
+                        >= plugin_config.users.group_level_threshold
+                    )
+        except ValueError:
+            pass
 
     in_superuser_whitelist = super_user(bot, event)
     in_testuser_whitelist = test_user(bot, event)
