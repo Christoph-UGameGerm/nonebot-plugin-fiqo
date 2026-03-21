@@ -1,5 +1,5 @@
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.api import weblate_client
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.api import weblate_client
+from nonebot_plugin_fiqo.exceptions import (
     I18nFetchError,
 )
 

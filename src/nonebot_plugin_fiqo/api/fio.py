@@ -1,15 +1,15 @@
 from nonebot import get_driver, logger
 from pydantic import BaseModel
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.api import BaseClient
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.api import BaseClient
+from nonebot_plugin_fiqo.exceptions import (
     WrongBuildingTickerError,
     WrongCXTickerError,
     WrongMaterialTickerError,
     WrongRecipeTickerError,
     WrongUsernameOrCompanyTickerError,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import (
+from nonebot_plugin_fiqo.models import (
     FIOBuildingResponse,
     FIOCXResponse,
     FIOMaterialResponse,

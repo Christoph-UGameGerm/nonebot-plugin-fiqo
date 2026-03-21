@@ -8,7 +8,7 @@ from nonebot.exception import FinishedException
 from nonebot_plugin_alconna import Extension, Text, UniMessage
 from nonebot_plugin_alconna.extension import TM
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import plugin_config
+from nonebot_plugin_fiqo.config import plugin_config
 
 
 class OB11GroupFwdExtension(Extension):

@@ -4,15 +4,15 @@ import httpx
 from nonebot import get_driver, logger
 from pydantic import BaseModel, SecretStr
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.api import BaseClient
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import (
+from nonebot_plugin_fiqo.api import BaseClient
+from nonebot_plugin_fiqo.config import (
     WeblateConfig,
     plugin_config,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.exceptions import (
     I18nNotFoundError,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import I18nDictDTO
+from nonebot_plugin_fiqo.models import I18nDictDTO
 
 
 class WeblateEndpoint(BaseModel):
@@ -43,7 +43,8 @@ ENDPOINTS = WeblateEndpoint()
 class WeblateClient(BaseClient):
     def __init__(self, config: WeblateConfig) -> None:
         super().__init__(base_url=ENDPOINTS.base_url, timeout=10)
-        self.client.auth = WeblateAuth(config.api_token)
+        if config.api_token:
+            self.client.auth = WeblateAuth(config.api_token)
         self.client.headers.update({"User-Agent": "CommunityBot/WeblateClient"})
 
     async def get_units(self, query: str, cache_key: str) -> I18nDictDTO:

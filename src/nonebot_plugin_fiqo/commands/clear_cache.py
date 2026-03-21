@@ -1,6 +1,6 @@
 from nonebot_plugin_alconna import Alconna, CommandMeta, on_alconna
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import disk_cache
+from nonebot_plugin_fiqo.utils import disk_cache
 
 from .permissions import ADMIN
 

@@ -8,7 +8,7 @@ from nonebot_plugin_alconna import (
     on_alconna,
 )
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.commands.extensions import (
+from nonebot_plugin_fiqo.commands.extensions import (
     OB11GroupFwdExtension,
 )
 

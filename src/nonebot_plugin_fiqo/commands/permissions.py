@@ -5,7 +5,7 @@ from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 from nonebot.permission import Permission
 from nonebot_plugin_alconna import Alconna, CommandMeta, on_alconna
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import plugin_config
+from nonebot_plugin_fiqo.config import plugin_config
 
 
 async def get_group_member_info(

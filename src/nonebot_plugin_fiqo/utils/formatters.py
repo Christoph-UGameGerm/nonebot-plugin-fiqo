@@ -7,14 +7,14 @@ from datetime import timedelta
 from nonebot import logger
 from nonebot_plugin_alconna import UniMessage
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo import (
+from nonebot_plugin_fiqo import (
     exceptions as fiqo_exceptions,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import (
+from nonebot_plugin_fiqo.config import (
     FormatConfig,
     plugin_config,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import (
+from nonebot_plugin_fiqo.models import (
     BasePlanetDTO,
     BuildingDTO,
     CostMaterialDTO,
@@ -169,7 +169,7 @@ class Formatter:
             else None,
             "更新时间："
             + self.format_timedelta(
-                datetime.datetime.now(datetime.UTC) - data.timestamp
+                datetime.datetime.now(datetime.timezone.utc) - data.timestamp
             )
             + "前",
         ]

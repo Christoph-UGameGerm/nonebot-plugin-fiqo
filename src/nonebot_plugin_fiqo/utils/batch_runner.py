@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import ServiceResult
+from nonebot_plugin_fiqo.models import ServiceResult
 
 T = TypeVar("T", bound=BaseModel)
 

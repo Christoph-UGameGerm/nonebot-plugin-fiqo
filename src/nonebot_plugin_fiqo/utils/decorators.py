@@ -6,7 +6,7 @@ from arclet.alconna import Arparma
 from nonebot.log import logger
 from nonebot.matcher import current_matcher
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.exceptions import (
     FIQOBaseError,
 )
 

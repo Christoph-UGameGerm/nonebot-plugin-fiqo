@@ -16,10 +16,10 @@ from nonebot_plugin_alconna import (
     on_alconna,
 )
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import plugin_config
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import UserAndCompanyDTO
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.services import fio_service
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import (
+from nonebot_plugin_fiqo.config import plugin_config
+from nonebot_plugin_fiqo.models import UserAndCompanyDTO
+from nonebot_plugin_fiqo.services import fio_service
+from nonebot_plugin_fiqo.utils import (
     analyze_nickname_entities,
     execute_tasks,
     global_formatter,

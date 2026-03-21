@@ -6,12 +6,12 @@ from typing import TypeVar
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.exceptions import (
     BadConnectionError,
     FIQOBaseError,
     ResourceNotFoundError,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import disk_cache
+from nonebot_plugin_fiqo.utils import disk_cache
 
 T = TypeVar("T", bound=BaseModel)
 

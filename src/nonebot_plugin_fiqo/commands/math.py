@@ -1,8 +1,8 @@
 from arclet.alconna import StrMulti
 from nonebot_plugin_alconna import Alconna, Args, CommandMeta, on_alconna
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.services import math_service
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import (
+from nonebot_plugin_fiqo.services import math_service
+from nonebot_plugin_fiqo.utils import (
     decorators,
     execute_batch,
     global_formatter,

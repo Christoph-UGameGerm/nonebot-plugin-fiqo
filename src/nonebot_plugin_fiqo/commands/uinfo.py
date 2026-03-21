@@ -8,8 +8,8 @@ from nonebot_plugin_alconna import (
     on_alconna,
 )
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.services import fio_service
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import (
+from nonebot_plugin_fiqo.services import fio_service
+from nonebot_plugin_fiqo.utils import (
     execute_tasks,
     global_formatter,
 )

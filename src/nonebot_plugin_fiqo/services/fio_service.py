@@ -4,19 +4,19 @@ from typing import Literal
 from nonebot import logger
 from pydantic import BaseModel
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.api import fio_client
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import plugin_config
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.api import fio_client
+from nonebot_plugin_fiqo.config import plugin_config
+from nonebot_plugin_fiqo.exceptions import (
     WrongUsernameOrCompanyTickerError,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import (
+from nonebot_plugin_fiqo.models import (
     BuildingDTO,
     CXMaterialDTO,
     MaterialDTO,
     RecipeDTO,
     UserAndCompanyDTO,
 )
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.utils import (
+from nonebot_plugin_fiqo.utils import (
     global_formatter,
 )
 

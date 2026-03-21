@@ -1,7 +1,7 @@
 import ast
 import operator
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.exceptions import (
+from nonebot_plugin_fiqo.exceptions import (
     EvaluationError,
     UnsupportedOperatorError,
 )

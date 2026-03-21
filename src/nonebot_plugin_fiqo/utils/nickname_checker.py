@@ -1,8 +1,8 @@
 from collections import defaultdict
 from collections.abc import Sequence
 
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.models import UserAndCompanyDTO
-from fiqo_nonebot_plugin_dev.plugins.nonebot_plugin_fiqo.config import plugin_config
+from nonebot_plugin_fiqo.models import UserAndCompanyDTO
+from nonebot_plugin_fiqo.config import plugin_config
 
 
 def analyze_nickname_entities(
