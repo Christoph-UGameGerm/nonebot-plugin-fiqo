@@ -1,8 +1,8 @@
-import datetime
-import math
 import re
-from collections import defaultdict
+import math
+import datetime
 from datetime import timedelta
+from collections import defaultdict
 
 from nonebot import logger
 from nonebot_plugin_alconna import UniMessage
@@ -15,15 +15,15 @@ from nonebot_plugin_fiqo.config import (
     plugin_config,
 )
 from nonebot_plugin_fiqo.models import (
-    BasePlanetDTO,
-    BuildingDTO,
-    CostMaterialDTO,
-    CXMaterialDTO,
     CXOrder,
-    MaterialDTO,
-    OfficePlanetDTO,
     RecipeDTO,
+    BuildingDTO,
+    MaterialDTO,
+    BasePlanetDTO,
+    CXMaterialDTO,
     ServiceResult,
+    CostMaterialDTO,
+    OfficePlanetDTO,
     UserAndCompanyDTO,
 )
 
@@ -175,20 +175,20 @@ class Formatter:
         ]
         return "\n".join(filter(None, lines))
 
-    def format_planet_name(self, natrual_id: str, name: str) -> str:
-        return natrual_id + " - " + name if name != natrual_id else natrual_id
+    def format_planet_name(self, natural_id: str, name: str) -> str:
+        return natural_id + " - " + name if name != natural_id else natural_id
 
     def format_base_list(self, bases: list[BasePlanetDTO]) -> str:
         return "\n".join(
             self.config.list_item_lead
-            + f"{self.format_planet_name(base.natrual_id, base.name)}"
+            + f"{self.format_planet_name(base.natural_id, base.name)}"
             for base in bases
         )
 
     def format_office_list(self, offices: list[OfficePlanetDTO]) -> str:
         return "\n".join(
             self.config.list_item_lead
-            + f"{self.format_planet_name(office.natrual_id, office.name)}"
+            + f"{self.format_planet_name(office.natural_id, office.name)}"
             for office in offices
         )
 

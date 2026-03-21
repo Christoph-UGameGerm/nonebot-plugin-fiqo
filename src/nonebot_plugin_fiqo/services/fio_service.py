@@ -1,23 +1,21 @@
 import asyncio
-from typing import Literal
 
 from nonebot import logger
-from pydantic import BaseModel
 
 from nonebot_plugin_fiqo.api import fio_client
-from nonebot_plugin_fiqo.config import plugin_config
-from nonebot_plugin_fiqo.exceptions import (
-    WrongUsernameOrCompanyTickerError,
-)
-from nonebot_plugin_fiqo.models import (
-    BuildingDTO,
-    CXMaterialDTO,
-    MaterialDTO,
-    RecipeDTO,
-    UserAndCompanyDTO,
-)
 from nonebot_plugin_fiqo.utils import (
     global_formatter,
+)
+from nonebot_plugin_fiqo.config import plugin_config
+from nonebot_plugin_fiqo.models import (
+    RecipeDTO,
+    BuildingDTO,
+    MaterialDTO,
+    CXMaterialDTO,
+    UserAndCompanyDTO,
+)
+from nonebot_plugin_fiqo.exceptions import (
+    WrongUsernameOrCompanyTickerError,
 )
 
 from .i18n_service import i18n_service
@@ -38,10 +36,10 @@ class FIOService:
             for r in fio_response.root
             if r.inputs and any(i.ticker == ticker for i in r.inputs)
         ]
-        from_recipes_reponse = global_formatter.format_recipe_list(from_recipes)
+        from_recipes_response = global_formatter.format_recipe_list(from_recipes)
         to_recipes_response = global_formatter.format_recipe_list(to_recipes)
         lines = [
-            f"生产：\n{from_recipes_reponse}" if from_recipes else "",
+            f"生产：\n{from_recipes_response}" if from_recipes else "",
             f"产品：\n{to_recipes_response}" if to_recipes else "",
         ]
         return "\n".join([line for line in lines if line])

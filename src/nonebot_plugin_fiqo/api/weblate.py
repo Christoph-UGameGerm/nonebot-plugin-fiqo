@@ -1,7 +1,7 @@
 from typing import Any
 
 import httpx
-from nonebot import get_driver, logger
+from nonebot import get_driver
 from pydantic import BaseModel, SecretStr
 
 from nonebot_plugin_fiqo.api import BaseClient
@@ -9,10 +9,10 @@ from nonebot_plugin_fiqo.config import (
     WeblateConfig,
     plugin_config,
 )
+from nonebot_plugin_fiqo.models import I18nDictDTO
 from nonebot_plugin_fiqo.exceptions import (
     I18nNotFoundError,
 )
-from nonebot_plugin_fiqo.models import I18nDictDTO
 
 
 class WeblateEndpoint(BaseModel):

@@ -1,20 +1,20 @@
-from nonebot import get_driver, logger
+from nonebot import get_driver
 from pydantic import BaseModel
 
 from nonebot_plugin_fiqo.api import BaseClient
-from nonebot_plugin_fiqo.exceptions import (
-    WrongBuildingTickerError,
-    WrongCXTickerError,
-    WrongMaterialTickerError,
-    WrongRecipeTickerError,
-    WrongUsernameOrCompanyTickerError,
-)
 from nonebot_plugin_fiqo.models import (
-    FIOBuildingResponse,
     FIOCXResponse,
-    FIOMaterialResponse,
     FIORecipeResponse,
+    FIOBuildingResponse,
+    FIOMaterialResponse,
     FIOUsrAndCoResponse,
+)
+from nonebot_plugin_fiqo.exceptions import (
+    WrongCXTickerError,
+    WrongRecipeTickerError,
+    WrongBuildingTickerError,
+    WrongMaterialTickerError,
+    WrongUsernameOrCompanyTickerError,
 )
 
 

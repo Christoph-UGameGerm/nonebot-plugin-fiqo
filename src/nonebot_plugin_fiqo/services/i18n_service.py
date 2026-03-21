@@ -1,8 +1,8 @@
 from nonebot_plugin_fiqo.api import weblate_client
+from nonebot_plugin_fiqo.config import plugin_config
 from nonebot_plugin_fiqo.exceptions import (
     I18nFetchError,
 )
-from nonebot_plugin_fiqo.config import plugin_config
 
 
 class I18nService:

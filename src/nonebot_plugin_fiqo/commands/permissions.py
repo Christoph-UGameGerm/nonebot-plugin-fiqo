@@ -1,9 +1,9 @@
 from typing import Any
 
 from nonebot.adapters import Bot, Event
-from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 from nonebot.permission import Permission
 from nonebot_plugin_alconna import Alconna, CommandMeta, on_alconna
+from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 
 from nonebot_plugin_fiqo.config import plugin_config
 

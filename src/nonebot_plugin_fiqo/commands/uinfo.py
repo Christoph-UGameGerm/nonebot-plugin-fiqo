@@ -1,18 +1,18 @@
 from nonebot_plugin_alconna import (
-    Alconna,
     Args,
-    Arparma,
-    CommandMeta,
-    MultiVar,
     Option,
+    Alconna,
+    Arparma,
+    MultiVar,
+    CommandMeta,
     on_alconna,
 )
 
-from nonebot_plugin_fiqo.services import fio_service
 from nonebot_plugin_fiqo.utils import (
     execute_tasks,
     global_formatter,
 )
+from nonebot_plugin_fiqo.services import fio_service
 
 from .permissions import ADMIN
 

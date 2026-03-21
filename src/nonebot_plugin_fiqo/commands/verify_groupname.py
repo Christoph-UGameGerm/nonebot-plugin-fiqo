@@ -1,29 +1,25 @@
 import asyncio
-from collections import defaultdict
 
-from arclet.alconna import Arparma
 from nonebot import logger
+from arclet.alconna import Arparma
 from nonebot.adapters import Bot, Event
-from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 from nonebot_plugin_alconna import (
-    Alconna,
-    Args,
     At,
-    CommandMeta,
-    MultiVar,
+    Args,
     Option,
+    Alconna,
+    MultiVar,
     UniMessage,
+    CommandMeta,
     on_alconna,
 )
+from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 
-from nonebot_plugin_fiqo.config import plugin_config
-from nonebot_plugin_fiqo.models import UserAndCompanyDTO
-from nonebot_plugin_fiqo.services import fio_service
 from nonebot_plugin_fiqo.utils import (
-    analyze_nickname_entities,
-    execute_tasks,
     global_formatter,
+    analyze_nickname_entities,
 )
+from nonebot_plugin_fiqo.services import fio_service
 
 from .permissions import SUPERUSER, get_group_member_info
 

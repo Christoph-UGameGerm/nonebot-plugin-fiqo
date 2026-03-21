@@ -1,11 +1,11 @@
 from arclet.alconna import StrMulti
-from nonebot_plugin_alconna import Alconna, Args, CommandMeta, on_alconna
+from nonebot_plugin_alconna import Args, Alconna, CommandMeta, on_alconna
 
-from nonebot_plugin_fiqo.services import fio_service
 from nonebot_plugin_fiqo.utils import (
     execute_batch,
     global_formatter,
 )
+from nonebot_plugin_fiqo.services import fio_service
 
 from .extensions import OB11GroupFwdExtension
 from .permissions import NORMALUSER

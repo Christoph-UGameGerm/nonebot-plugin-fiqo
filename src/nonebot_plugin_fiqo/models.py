@@ -1,12 +1,12 @@
 import math
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from typing import Any
+from datetime import datetime, timedelta
+from dataclasses import field, dataclass
 
 from pydantic import (
-    BaseModel,
     Field,
+    BaseModel,
     RootModel,
     field_validator,
     model_validator,
@@ -184,12 +184,12 @@ class CXMaterialDTO(BaseModel):
 
 
 class BasePlanetDTO(BaseModel):
-    natrual_id: str
+    natural_id: str
     name: str
 
 
 class OfficePlanetDTO(BaseModel):
-    natrual_id: str
+    natural_id: str
     name: str
 
 
@@ -227,11 +227,11 @@ class UserAndCompanyDTO(BaseModel):
             faction=response.faction,
             base_counts=response.base_counts,
             bases=[
-                BasePlanetDTO(natrual_id=base.natrual_id, name=base.name)
+                BasePlanetDTO(natural_id=base.natural_id, name=base.name)
                 for base in response.bases
             ],
             offices=[
-                OfficePlanetDTO(natrual_id=office.natrual_id, name=office.name)
+                OfficePlanetDTO(natural_id=office.natural_id, name=office.name)
                 for office in response.current_offices
             ],
         )
@@ -368,12 +368,12 @@ class FIOCXResponse(BaseModel):
 
 
 class FIOBasePlanetResponse(BaseModel):
-    natrual_id: str = Field(alias="PlanetNaturalId")
+    natural_id: str = Field(alias="PlanetNaturalId")
     name: str = Field(alias="PlanetName")
 
 
 class FIOOfficePlanetResponse(BaseModel):
-    natrual_id: str = Field(alias="PlanetNaturalId")
+    natural_id: str = Field(alias="PlanetNaturalId")
     name: str = Field(alias="PlanetName")
 
 

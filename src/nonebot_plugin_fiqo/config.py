@@ -1,5 +1,5 @@
 from nonebot import get_plugin_config
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import Field, BaseModel, SecretStr
 
 
 class WeblateConfig(BaseModel):

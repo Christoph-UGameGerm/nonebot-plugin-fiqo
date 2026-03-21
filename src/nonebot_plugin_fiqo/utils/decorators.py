@@ -1,9 +1,9 @@
 import functools
-from collections.abc import Callable
 from typing import Any
+from collections.abc import Callable
 
-from arclet.alconna import Arparma
 from nonebot.log import logger
+from arclet.alconna import Arparma
 from nonebot.matcher import current_matcher
 
 from nonebot_plugin_fiqo.exceptions import (

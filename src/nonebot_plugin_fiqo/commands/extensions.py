@@ -1,12 +1,12 @@
 from nonebot.adapters import Bot, Event
+from nonebot.exception import FinishedException
+from nonebot_plugin_alconna import Text, Extension, UniMessage
 from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 from nonebot.adapters.onebot.v11 import Event as OB11Event
 from nonebot.adapters.onebot.v11 import GroupMessageEvent as OB11GroupMessageEvent
 from nonebot.adapters.onebot.v11 import PrivateMessageEvent as OB11PrivateMessageEvent
-from nonebot.adapters.onebot.v11.exception import ActionFailed
-from nonebot.exception import FinishedException
-from nonebot_plugin_alconna import Extension, Text, UniMessage
 from nonebot_plugin_alconna.extension import TM
+from nonebot.adapters.onebot.v11.exception import ActionFailed
 
 from nonebot_plugin_fiqo.config import plugin_config
 

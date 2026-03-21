@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import Callable, Coroutine, Iterable
 from typing import Any, TypeVar
+from collections.abc import Callable, Iterable, Coroutine
 
 from pydantic import BaseModel
 
