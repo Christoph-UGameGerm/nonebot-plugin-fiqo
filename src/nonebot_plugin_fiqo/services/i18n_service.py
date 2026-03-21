@@ -2,9 +2,15 @@ from nonebot_plugin_fiqo.api import weblate_client
 from nonebot_plugin_fiqo.exceptions import (
     I18nFetchError,
 )
+from nonebot_plugin_fiqo.config import plugin_config
 
 
 class I18nService:
+
+    @property
+    def _weblate_authorized(self) -> bool:
+        return bool(plugin_config.weblate.api_token)
+
     async def get_material_field(self, name: str, field: str) -> str:
         query = f"key:Material.{name}"
         cache_key = f"wl:mat:{name}"
@@ -42,6 +48,8 @@ class I18nService:
     async def get_expertise_name(self, expertise: str | None) -> str | None:
         if not expertise:
             return None
+        if not self._weblate_authorized:
+            return expertise + "（需配置Weblate API Token以获取中文专精）"
         query = "key:ExpertiseCategory."
         cache_key = "wl:expertise_cat"
         formatted_expertise = expertise.upper()
@@ -54,22 +62,32 @@ class I18nService:
         return result
 
     async def get_material_i18n_name(self, material_name: str) -> str:
+        if not self._weblate_authorized:
+            return material_name + "（需配置Weblate API Token以获取中文名称）"
         i18n_name = await self.get_material_field(material_name, "name")
         return i18n_name if i18n_name else material_name
 
     async def get_material_i18n_desc(self, material_name: str) -> str:
+        if not self._weblate_authorized:
+            return "需配置Weblate API Token以获取描述"
         i18n_desc = await self.get_material_field(material_name, "description")
         return i18n_desc if i18n_desc else ""
 
     async def get_material_i18n_category(self, category: str) -> str:
+        if not self._weblate_authorized:
+            return category + "（需配置Weblate API Token以获取中文类别）"
         i18n_category = await self.get_category_name(category)
         return i18n_category if i18n_category else category
 
     async def get_building_i18n_name(self, building_name: str) -> str:
+        if not self._weblate_authorized:
+            return building_name + "（需配置Weblate API Token以获取中文名称）"
         i18n_name = await self.get_building_field(building_name, "name")
         return i18n_name if i18n_name else building_name
 
     async def get_building_i18n_desc(self, building_name: str) -> str:
+        if not self._weblate_authorized:
+            return "需配置Weblate API Token以获取描述"
         i18n_desc = await self.get_building_field(building_name, "description")
         return i18n_desc if i18n_desc else ""
 
