@@ -24,6 +24,7 @@ dev = [
   "bump-my-version>=1.2.7",
   "nonebot2[fastapi]>=2.4.2,<3.0.0",
   "poethepoet>=0.42.1",
+  "pre-commit>=4.5.1",
   "ruff>=0.15.2,<1.0.0",
   { include-group = "test" },
 ]
