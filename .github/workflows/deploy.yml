@@ -28,4 +28,4 @@ jobs:
             docker compose restart nonebot
       - name: Notify via Bark
         run: |
-            curl "https://api.day.app/${{ secrets.BARK_TOKEN }}/Github: FIQO-Deploy-Complete/部署完成！"
+            curl "https://api.day.app/${{ secrets.BARK_TOKEN }}/Github:%20FIQO-Deploy-Complete/部署完成！"  
