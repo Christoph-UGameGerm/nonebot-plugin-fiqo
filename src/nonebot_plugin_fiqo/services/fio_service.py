@@ -8,7 +8,6 @@ from nonebot_plugin_fiqo.utils import (
 )
 from nonebot_plugin_fiqo.config import plugin_config
 from nonebot_plugin_fiqo.models import (
-    RecipeDTO,
     BuildingDTO,
     MaterialDTO,
     CXMaterialDTO,
@@ -27,13 +26,13 @@ class FIOService:
         fio_response = await fio_client.get_recipe_info(ticker)
         logger.info(f"Fetched recipe info for {ticker=}: {fio_response=}")
         from_recipes = [
-            RecipeDTO.from_fio_response(r)
-            for r in fio_response.root
+            r
+            for r in fio_response
             if r.outputs and any(o.ticker == ticker for o in r.outputs)
         ]
         to_recipes = [
-            RecipeDTO.from_fio_response(r)
-            for r in fio_response.root
+            r
+            for r in fio_response
             if r.inputs and any(i.ticker == ticker for i in r.inputs)
         ]
         from_recipes_response = global_formatter.format_recipe_list(from_recipes)
@@ -46,13 +45,10 @@ class FIOService:
 
     @staticmethod
     async def get_material_dto(ticker: str) -> MaterialDTO:
-        fio_response = await fio_client.get_material_info(ticker)
-        info = MaterialDTO.from_fio_response(fio_response)
-        info.name = await i18n_service.get_material_i18n_name(fio_response.name)
-        info.category = await i18n_service.get_material_i18n_category(
-            fio_response.category
-        )
-        info.desc = await i18n_service.get_material_i18n_desc(fio_response.name)
+        info = await fio_client.get_material_info(ticker)
+        info.name = await i18n_service.get_material_i18n_name(info.name)
+        info.category = await i18n_service.get_material_i18n_category(info.category)
+        info.desc = await i18n_service.get_material_i18n_desc(info.name)
         return info
 
     @staticmethod
@@ -68,11 +64,10 @@ class FIOService:
 
     @staticmethod
     async def get_building_dto(ticker: str) -> BuildingDTO:
-        fio_response = await fio_client.get_building_info(ticker)
-        info = BuildingDTO.from_fio_response(fio_response)
-        info.name = await i18n_service.get_building_i18n_name(fio_response.name)
-        info.desc = await i18n_service.get_building_i18n_desc(fio_response.name)
-        info.expertise = await i18n_service.get_expertise_name(fio_response.expertise)
+        info = await fio_client.get_building_info(ticker)
+        info.name = await i18n_service.get_building_i18n_name(info.name)
+        info.desc = await i18n_service.get_building_i18n_desc(info.name)
+        info.expertise = await i18n_service.get_expertise_name(info.expertise)
         return info
 
     @staticmethod
@@ -82,8 +77,7 @@ class FIOService:
 
     @staticmethod
     async def get_exchange_material_dto(ticker: str) -> CXMaterialDTO:
-        fio_response = await fio_client.get_cx_material_info(ticker)
-        return CXMaterialDTO.from_fio_response(fio_response)
+        return await fio_client.get_cx_material_info(ticker)
 
     @staticmethod
     async def get_exchange_material_info(ticker: str, order_no: int) -> str:
@@ -108,7 +102,7 @@ class FIOService:
             )
         else:
             raise WrongUsernameOrCompanyTickerError("未知")
-        return UserAndCompanyDTO.from_fio_response(fio_response)
+        return fio_response
 
     @staticmethod
     async def get_user_and_company_info(

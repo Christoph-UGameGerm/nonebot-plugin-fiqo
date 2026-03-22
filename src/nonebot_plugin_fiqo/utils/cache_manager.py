@@ -1,14 +1,14 @@
 import json
 import time
 import hashlib
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import anyio
 import nonebot_plugin_localstore as localstore
 from nonebot import logger
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-T = TypeVar("T", bound=BaseModel)
+T = TypeVar("T")
 
 
 class CacheItem(BaseModel, Generic[T]):
@@ -27,12 +27,12 @@ class DiskCacheManager:
         hashed_id = hashlib.md5(cache_key.encode("utf-8")).hexdigest()
         return self.base_path / f"{hashed_id}.json"
 
-    async def set(self, cache_key: str, data: BaseModel, ttl: int) -> None:
+    async def set(self, cache_key: str, data: Any, ttl: int) -> None:
         await self._init_dir()
         file_path = self._get_file_path(cache_key)
-        cache_item = CacheItem[type(data)](data=data, expire_at=time.time() + ttl)
+        cache_item = CacheItem(data=data, expire_at=time.time() + ttl)
         try:
-            json_str = cache_item.model_dump_json(by_alias=True)
+            json_str = cache_item.model_dump_json()
             await file_path.write_text(json_str, encoding="utf-8")
             logger.debug(
                 f"Disk cache set for key '{cache_key}' with TTL {ttl} seconds."
@@ -40,7 +40,7 @@ class DiskCacheManager:
         except (OSError, TypeError, ValueError) as e:
             logger.error(f"Error writing cache file for key '{cache_key}': {e}")
 
-    async def get(self, cache_key: str, data_type: type[T]) -> T | None:
+    async def get(self, cache_key: str, data_type: type[T] | Any) -> T | None:
         file_path = self._get_file_path(cache_key)
         if not await file_path.exists():
             return None
@@ -49,9 +49,8 @@ class DiskCacheManager:
             json_content = await file_path.read_text(encoding="utf-8")
             adapter = TypeAdapter(CacheItem[data_type])
             cache_item = adapter.validate_json(json_content)
-            logger.debug(
-                f"Cache file read successfully for {data_type.__name__}\n {cache_item=}"
-            )
+            dt_name = getattr(data_type, "__name__", str(data_type))
+            logger.debug(f"Cache file read successfully for {dt_name}\n {cache_item=}")
         except (
             FileNotFoundError,
             PermissionError,
@@ -62,8 +61,9 @@ class DiskCacheManager:
             TypeError,
             ValidationError,
         ) as e:
+            dt_name = getattr(data_type, "__name__", str(data_type))
             logger.warning(
-                f"Error reading cache file for {data_type.__name__}"
+                f"Error reading cache file for {dt_name}"
                 f" cache key '{cache_key}': {e}."
                 f" Treating as cache miss and clearing cache file."
             )
@@ -73,13 +73,13 @@ class DiskCacheManager:
             return None
 
         if cache_item.expire_at < time.time():
-            logger.info(
-                f"Cache expired for {data_type.__name__}, cache key '{cache_key}'."
-            )
+            dt_name = getattr(data_type, "__name__", str(data_type))
+            logger.info(f"Cache expired for {dt_name}, cache key '{cache_key}'.")
             await file_path.unlink(missing_ok=True)
             return None
 
-        logger.debug(f"Cache hit for {data_type.__name__} cache key '{cache_key}'.")
+        dt_name = getattr(data_type, "__name__", str(data_type))
+        logger.debug(f"Cache hit for {dt_name} cache key '{cache_key}'.")
         return cache_item.data
 
     async def clear_all(self) -> None:

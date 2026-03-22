@@ -2,11 +2,11 @@ from nonebot import get_driver
 from pydantic import BaseModel
 
 from nonebot_plugin_fiqo.models import (
-    FIOCXResponse,
-    FIORecipeResponse,
-    FIOBuildingResponse,
-    FIOMaterialResponse,
-    FIOUsrAndCoResponse,
+    RecipeDTO,
+    BuildingDTO,
+    MaterialDTO,
+    CXMaterialDTO,
+    UserAndCompanyDTO,
 )
 from nonebot_plugin_fiqo.exceptions import (
     WrongCXTickerError,
@@ -38,38 +38,38 @@ class FioClient(BaseClient):
         super().__init__(base_url=ENDPOINTS.base_url, timeout=10)
         self.client.headers.update({"User-Agent": "CommunityBot/FioClient"})
 
-    async def get_recipe_info(self, ticker: str) -> FIORecipeResponse:
+    async def get_recipe_info(self, ticker: str) -> list[RecipeDTO]:
         return await self.request(
-            key_and_model=(f"fio:recipe:{ticker}", FIORecipeResponse),
+            key_and_model=(f"fio:recipe:{ticker}", list[RecipeDTO]),
             endpoint=f"{ENDPOINTS.recipes}{ticker}",
             params=None,
             not_found_error=WrongRecipeTickerError(ticker),
             ttl=86400,
         )
 
-    async def get_material_info(self, ticker: str) -> FIOMaterialResponse:
+    async def get_material_info(self, ticker: str) -> MaterialDTO:
         return await self.request(
-            key_and_model=(f"fio:mat:{ticker}", FIOMaterialResponse),
+            key_and_model=(f"fio:mat:{ticker}", MaterialDTO),
             endpoint=f"{ENDPOINTS.material}{ticker}",
             params=None,
             not_found_error=WrongMaterialTickerError(ticker),
             ttl=86400,
         )
 
-    async def get_building_info(self, ticker: str) -> FIOBuildingResponse:
+    async def get_building_info(self, ticker: str) -> BuildingDTO:
         return await self.request(
-            key_and_model=(f"fio:bui:{ticker}", FIOBuildingResponse),
+            key_and_model=(f"fio:bui:{ticker}", BuildingDTO),
             endpoint=f"{ENDPOINTS.building}{ticker}",
             params=None,
             not_found_error=WrongBuildingTickerError(ticker),
             ttl=86400,
         )
 
-    async def get_cx_material_info(self, ticker: str) -> FIOCXResponse:
+    async def get_cx_material_info(self, ticker: str) -> CXMaterialDTO:
         return await self.request(
             key_and_model=(
                 f"fio:cx:{ticker}",
-                FIOCXResponse,
+                CXMaterialDTO,
             ),
             endpoint=f"{ENDPOINTS.cx}{ticker}",
             params={"include_buy_orders": "true", "include_sell_orders": "true"},
@@ -82,7 +82,7 @@ class FioClient(BaseClient):
         username: str | None = None,
         company_name: str | None = None,
         company_code: str | None = None,
-    ) -> FIOUsrAndCoResponse:
+    ) -> UserAndCompanyDTO:
         not_found_error = WrongUsernameOrCompanyTickerError(
             username or company_name or company_code or "未知"
         )
@@ -100,7 +100,7 @@ class FioClient(BaseClient):
         return await self.request(
             key_and_model=(
                 cache_key,
-                FIOUsrAndCoResponse,
+                UserAndCompanyDTO,
             ),
             endpoint=endpoint,
             params=None,

@@ -1,10 +1,10 @@
 import json
 import asyncio
 from json import JSONDecodeError
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from nonebot_plugin_fiqo.utils import disk_cache
 from nonebot_plugin_fiqo.exceptions import (
@@ -13,7 +13,7 @@ from nonebot_plugin_fiqo.exceptions import (
     ResourceNotFoundError,
 )
 
-T = TypeVar("T", bound=BaseModel)
+T = TypeVar("T")
 
 
 class BaseClient:
@@ -39,14 +39,14 @@ class BaseClient:
     async def _perform_request(
         self,
         endpoint: str,
-        model: type[T],
+        model: type[T] | Any,
         not_found_error: ResourceNotFoundError,
         params: dict | None = None,
     ) -> T:
         try:
             response = await self.client.get(endpoint, params=params)
             response.raise_for_status()
-            return model.model_validate(response.json())
+            return TypeAdapter(model).validate_python(response.json())
         except httpx.RequestError as e:
             raise BadConnectionError(str(e)) from e
         except (httpx.HTTPStatusError, ValidationError, JSONDecodeError) as e:
@@ -56,7 +56,7 @@ class BaseClient:
 
     async def request(
         self,
-        key_and_model: tuple[str, type[T]],
+        key_and_model: tuple[str, type[T] | Any],
         endpoint: str,
         params: dict | None,
         not_found_error: ResourceNotFoundError,
