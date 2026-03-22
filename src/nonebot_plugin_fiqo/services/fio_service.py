@@ -46,9 +46,13 @@ class FIOService:
     @staticmethod
     async def get_material_dto(ticker: str) -> MaterialDTO:
         info = await fio_client.get_material_info(ticker)
-        info.name = await i18n_service.get_material_i18n_name(info.name)
-        info.category = await i18n_service.get_material_i18n_category(info.category)
-        info.desc = await i18n_service.get_material_i18n_desc(info.name)
+        name_task = i18n_service.get_material_i18n_name(info.name)
+        category_task = i18n_service.get_material_i18n_category(info.category)
+        desc_task = i18n_service.get_material_i18n_desc(info.name)
+
+        info.name, info.category, info.desc = await asyncio.gather(
+            name_task, category_task, desc_task
+        )
         return info
 
     @staticmethod
@@ -65,9 +69,14 @@ class FIOService:
     @staticmethod
     async def get_building_dto(ticker: str) -> BuildingDTO:
         info = await fio_client.get_building_info(ticker)
-        info.name = await i18n_service.get_building_i18n_name(info.name)
-        info.desc = await i18n_service.get_building_i18n_desc(info.name)
-        info.expertise = await i18n_service.get_expertise_name(info.expertise)
+
+        name_task = i18n_service.get_building_i18n_name(info.name)
+        desc_task = i18n_service.get_building_i18n_desc(info.name)
+        expertise_task = i18n_service.get_expertise_name(info.expertise)
+
+        info.name, info.desc, info.expertise = await asyncio.gather(
+            name_task, desc_task, expertise_task
+        )
         return info
 
     @staticmethod
