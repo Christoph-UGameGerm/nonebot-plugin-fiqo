@@ -24,8 +24,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ~/FIQO
-            docker compose exec nonebot pip install --no-cache-dir --upgrade "nonebot-plugin-fiqo @ git+https://ghfast.top/https://github.com/Christoph-UGameGerm/nonebot-plugin-fiqo.git@master"
+            docker compose exec nonebot pip install --no-cache-dir --force-reinstall "nonebot-plugin-fiqo @ git+https://ghfast.top/https://github.com/Christoph-UGameGerm/nonebot-plugin-fiqo.git@${{ github.sha }}"
             docker compose restart nonebot
       - name: Notify via Bark
         run: |
-            curl "https://api.day.app/${{ secrets.BARK_TOKEN }}/Github:%20FIQO-Deploy-Complete/部署完成！"  
+            curl "https://api.day.app/${{ secrets.BARK_TOKEN }}/Github:%20FIQO-Deploy-Complete/部署完成！"
