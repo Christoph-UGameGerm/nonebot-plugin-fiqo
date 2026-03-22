@@ -1,6 +1,5 @@
 import re
 import math
-import datetime
 from datetime import timedelta
 from collections import defaultdict
 
@@ -37,10 +36,13 @@ class Formatter:
         return [name.strip() for name in cleaned.split("|") if name.strip()]
 
     def format_timedelta(self, td: timedelta) -> str:
-        total_seconds = int(td.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
+        total_seconds = int(abs(td.total_seconds()))
+        days, remainder = divmod(total_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
         minutes, seconds = divmod(remainder, 60)
         parts = []
+        if days > 0:
+            parts.append(f"{days}天")
         if hours > 0:
             parts.append(f"{hours}小时")
         if minutes > 0:
@@ -138,6 +140,9 @@ class Formatter:
             len(f"{order.price:.2f} {data.currency}")
             for order in data.sell_orders + data.buy_orders
         )
+        # Decide the time direction based on the sign of total_seconds
+        update_td = data.time_since_update
+        update_dir = "前" if update_td.total_seconds() >= 0 else "后"
 
         lines = [
             f"代码：{data.ticker}",
@@ -166,11 +171,7 @@ class Formatter:
             self.format_cx_buy_order_list(data.buy_orders, data.currency, order_no)
             if data.buy_orders
             else None,
-            "更新时间："
-            + self.format_timedelta(
-                datetime.datetime.now(datetime.timezone.utc) - data.timestamp
-            )
-            + "前",
+            f"更新时间：{self.format_timedelta(update_td)}{update_dir}",
         ]
         return "\n".join(filter(None, lines))
 

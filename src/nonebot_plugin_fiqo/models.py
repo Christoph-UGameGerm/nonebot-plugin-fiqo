@@ -1,13 +1,14 @@
 import math
 import time
 from typing import Any
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from dataclasses import field, dataclass
 
 from pydantic import (
     Field,
     BaseModel,
     ConfigDict,
+    computed_field,
     field_validator,
     model_validator,
 )
@@ -122,6 +123,11 @@ class CXMaterialDTO(FIQOBaseDTO):
     buy_orders: list[CXOrder] = Field(validation_alias="BuyingOrders")
     sell_orders: list[CXOrder] = Field(validation_alias="SellingOrders")
 
+    @computed_field
+    @property
+    def time_since_update(self) -> timedelta:
+        return datetime.now(timezone.utc) - self.timestamp
+
     @field_validator(
         "price", "ask_price", "bid_price", "ask_size", "bid_size", mode="before"
     )
@@ -163,6 +169,7 @@ class BasePlanetDTO(FIQOBaseDTO):
 class OfficePlanetDTO(FIQOBaseDTO):
     natural_id: str = Field(validation_alias="PlanetNaturalId")
     name: str = Field(validation_alias="PlanetName")
+    end_epoch_ms: int = Field(default=0, validation_alias="EndEpochMs")
 
 
 class UserAndCompanyDTO(FIQOBaseDTO):
@@ -179,7 +186,7 @@ class UserAndCompanyDTO(FIQOBaseDTO):
         default=None, validation_alias="CorporationCode"
     )
     rating: str = Field(validation_alias="OverallRating")
-    created_days: int = Field(default=0)
+    created_epoch_ms: int = Field(default=0, validation_alias="CreatedEpochMs")
     faction: str = Field(validation_alias="CountryCode")
     base_counts: int = Field(default=0)
     bases: list[BasePlanetDTO] = Field(default_factory=list, validation_alias="Planets")
@@ -187,39 +194,33 @@ class UserAndCompanyDTO(FIQOBaseDTO):
         default_factory=list, validation_alias="Offices"
     )
 
+    @computed_field
+    @property
+    def created_days(self) -> int:
+        if self.created_epoch_ms == 0:
+            return 0
+        return timedelta(milliseconds=time.time() * 1000 - self.created_epoch_ms).days
+
     @field_validator("subscription_level", mode="before")
     @classmethod
     def handle_sub_level(cls, v: Any) -> str:
         return v if v else "TRIAL"
 
-    @model_validator(mode="before")
-    @classmethod
-    def process_raw_data(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "CreatedEpochMs" in data:
-                data["created_days"] = timedelta(
-                    milliseconds=(time.time() * 1000 - data.get("CreatedEpochMs", 0))
-                ).days
+    @model_validator(mode="after")
+    def post_process_data(self) -> "UserAndCompanyDTO":
+        self.base_counts = len(self.bases)
+        self.bases.sort(key=lambda p: p.natural_id)
 
-            if "Planets" in data:
-                data["base_counts"] = len(data.get("Planets", []))
-                data["Planets"] = sorted(
-                    data.get("Planets", []),
-                    key=lambda planet: planet.get("PlanetNaturalId", ""),
-                )
-
-            if "Offices" in data:
-                current_time = time.time() * 1000
-                valid_offices = [
-                    o
-                    for o in data.get("Offices", [])
-                    if current_time - o.get("EndEpochMs", 0) < 0
-                ]
-                data["Offices"] = sorted(
-                    valid_offices,
-                    key=lambda office: office.get("PlanetNaturalId", ""),
-                )
-        return data
+        current_ms = time.time() * 1000
+        self.offices = sorted(
+            [
+                o
+                for o in self.offices
+                if o.end_epoch_ms == 0 or o.end_epoch_ms > current_ms
+            ],
+            key=lambda o: o.natural_id,
+        )
+        return self
 
 
 class I18nDictDTO(BaseModel):
