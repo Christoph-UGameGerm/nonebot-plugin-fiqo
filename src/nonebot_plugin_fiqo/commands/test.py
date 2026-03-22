@@ -1,6 +1,5 @@
 from nonebot import logger
 from nonebot_plugin_alconna import (
-    Args,
     Image,
     Alconna,
     UniMessage,
@@ -17,8 +16,6 @@ from .permissions import ADMIN
 fiqo_test = on_alconna(
     Alconna(
         "test",
-        Args["message", str],
-        Args["img?", Image],
         meta=CommandMeta(
             description="测试命令",
             hide=True,
@@ -30,15 +27,10 @@ fiqo_test = on_alconna(
 
 
 @fiqo_test.handle()
-async def _2(message: str):
-    await _(message, None)
-
-
-@fiqo_test.handle()
 async def _(message: str, img: Image | None):
     logger.info(f"Received test command with message: {message}")
     response = UniMessage(message)
     if img:
         response += img
-
-    await fiqo_test.finish(response)
+    await fiqo_test.send(response)
+    raise RuntimeError("This is a test error to check error handling.")
