@@ -1,14 +1,12 @@
 import json
 import asyncio
-from json import JSONDecodeError
 from typing import Any, TypeVar
 
 import httpx
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 
 from nonebot_plugin_fiqo.utils import disk_cache
 from nonebot_plugin_fiqo.exceptions import (
-    FIQOBaseError,
     BadConnectionError,
     ResourceNotFoundError,
 )
@@ -45,14 +43,26 @@ class BaseClient:
     ) -> T:
         try:
             response = await self.client.get(endpoint, params=params)
+
+            # HTTP-level "Not Found"
+            # e.g. FIO returns 204, PrunPlanner return 404 on some endpoints
+            if response.status_code in (204, 404):
+                raise not_found_error
+
             response.raise_for_status()
-            return TypeAdapter(model).validate_python(response.json())
+            data = response.json()
+
+            # Business-level "Not Found"
+            # e.g. PrunPlanner returns []
+            # e.g. Weblate returns {"count": 0, "results": []}
+            if data == [] or (
+                isinstance(data, dict) and "results" in data and not data["results"]
+            ):
+                raise not_found_error
+
+            return TypeAdapter(model).validate_python(data)
         except httpx.RequestError as e:
             raise BadConnectionError(str(e)) from e
-        except (httpx.HTTPStatusError, ValidationError, JSONDecodeError) as e:
-            raise not_found_error from e
-        except Exception as e:
-            raise FIQOBaseError(str(e)) from e
 
     async def request(
         self,

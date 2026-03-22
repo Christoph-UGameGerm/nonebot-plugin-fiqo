@@ -230,8 +230,6 @@ class I18nDictDTO(BaseModel):
     def extract_and_transform(cls, data: Any) -> Any:
         if isinstance(data, dict) and "results" in data:
             results = data["results"]
-            if not results:
-                raise ValueError("Weblate返回空列表")
 
             parsed_dict = {}
             for item in results:
