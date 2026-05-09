@@ -20,19 +20,19 @@ from nonebot_plugin_fiqo.exceptions import (
 from .i18n_service import i18n_service
 
 
-class FIOService:
+class GameInfoService:
     @staticmethod
     async def get_recipe_info(ticker: str) -> str:
-        fio_response = await fio_client.get_recipe_info(ticker)
-        logger.info(f"Fetched recipe info for {ticker=}: {fio_response=}")
+        recipe_info_list = await fio_client.get_recipe_info(ticker)
+        logger.info(f"Fetched recipe info for {ticker=}: {recipe_info_list=}")
         from_recipes = [
             r
-            for r in fio_response
+            for r in recipe_info_list
             if r.outputs and any(o.ticker == ticker for o in r.outputs)
         ]
         to_recipes = [
             r
-            for r in fio_response
+            for r in recipe_info_list
             if r.inputs and any(i.ticker == ticker for i in r.inputs)
         ]
         from_recipes_response = global_formatter.format_recipe_list(from_recipes)
@@ -57,13 +57,13 @@ class FIOService:
 
     @staticmethod
     async def get_material_info(ticker: str) -> str:
-        dto = await FIOService.get_material_dto(ticker)
+        dto = await GameInfoService.get_material_dto(ticker)
         return global_formatter.format_material(dto)
 
     @staticmethod
     async def get_material_info_with_recipes(ticker: str) -> str:
-        material_response = await FIOService.get_material_info(ticker)
-        recipe_response = await FIOService.get_recipe_info(ticker)
+        material_response = await GameInfoService.get_material_info(ticker)
+        recipe_response = await GameInfoService.get_recipe_info(ticker)
         return material_response + "\n" + recipe_response
 
     @staticmethod
@@ -81,7 +81,7 @@ class FIOService:
 
     @staticmethod
     async def get_building_info(ticker: str) -> str:
-        dto = await FIOService.get_building_dto(ticker)
+        dto = await GameInfoService.get_building_dto(ticker)
         return global_formatter.format_building(dto)
 
     @staticmethod
@@ -90,7 +90,7 @@ class FIOService:
 
     @staticmethod
     async def get_exchange_material_info(ticker: str, order_no: int) -> str:
-        dto = await FIOService.get_exchange_material_dto(ticker)
+        dto = await GameInfoService.get_exchange_material_dto(ticker)
         return global_formatter.format_cx_material(dto, order_no)
 
     @staticmethod
@@ -119,7 +119,7 @@ class FIOService:
         company_code: str | None = None,
         company_name: str | None = None,
     ) -> str:
-        info = await FIOService.get_user_and_company_dto(
+        info = await GameInfoService.get_user_and_company_dto(
             username=username, company_code=company_code, company_name=company_name
         )
         return global_formatter.format_user_company_info(info)
@@ -136,9 +136,9 @@ class FIOService:
         matches = []
 
         tasks = [
-            FIOService.get_user_and_company_dto(username=ticker),
-            FIOService.get_user_and_company_dto(company_code=ticker_upper),
-            FIOService.get_user_and_company_dto(company_name=ticker),
+            GameInfoService.get_user_and_company_dto(username=ticker),
+            GameInfoService.get_user_and_company_dto(company_code=ticker_upper),
+            GameInfoService.get_user_and_company_dto(company_name=ticker),
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         username_res, company_code_res, company_name_res = results
@@ -154,5 +154,9 @@ class FIOService:
 
         return (ticker, matches)
 
+    @staticmethod
+    async def get_planet_info(name_or_id: str) -> str:
+        raise NotImplementedError
 
-fio_service = FIOService()
+
+info_service = GameInfoService()

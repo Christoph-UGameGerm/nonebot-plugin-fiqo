@@ -47,9 +47,9 @@ async def test_mat(app: App, monkeypatch: pytest.MonkeyPatch):
     async def mock_get_material_info(ticker: str) -> str:
         return f"材料 {ticker}：Test Material\n描述：This is a test material."
 
-    from nonebot_plugin_fiqo.services.fio_service import FIOService
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
-    monkeypatch.setattr(FIOService, "get_material_info", mock_get_material_info)
+    monkeypatch.setattr(GameInfoService, "get_material_info", mock_get_material_info)
 
     async with app.test_matcher(fiqo_material) as ctx:
         adapter = nonebot.get_adapter(OnebotV11Adapter)

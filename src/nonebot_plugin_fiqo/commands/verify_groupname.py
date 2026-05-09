@@ -19,7 +19,7 @@ from nonebot_plugin_fiqo.utils import (
     global_formatter,
     analyze_nickname_entities,
 )
-from nonebot_plugin_fiqo.services import fio_service
+from nonebot_plugin_fiqo.services import info_service
 
 from .permissions import SUPERUSER, get_group_member_info
 
@@ -64,7 +64,7 @@ async def _(
     nickname_fields = global_formatter.clean_and_partition_group_nickname(user_nickname)
 
     tasks = [
-        fio_service.identify_user_company_token(f, i)
+        info_service.identify_user_company_token(f, i)
         for (i, f) in enumerate(nickname_fields)
     ]
     service_result = await asyncio.gather(*tasks)
