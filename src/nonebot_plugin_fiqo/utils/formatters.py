@@ -15,12 +15,14 @@ from nonebot_plugin_fiqo.config import (
 )
 from nonebot_plugin_fiqo.models import (
     CXOrder,
+    PlanetDTO,
     RecipeDTO,
     BuildingDTO,
     MaterialDTO,
     BasePlanetDTO,
     CXMaterialDTO,
     ServiceResult,
+    CoGCProgramDTO,
     CostMaterialDTO,
     OfficePlanetDTO,
     UserAndCompanyDTO,
@@ -233,6 +235,80 @@ class Formatter:
         if result.warnings:
             formatted_contents += self.format_warnings(result.warnings)
         return formatted_contents
+
+    def format_planet_projects_list(self, data: PlanetDTO) -> str:
+        item_lead = self.config.list_item_lead
+        lines = [
+            (item_lead + "行星监管中心") if data.has_adm else None,
+            (item_lead + "全球商会") if data.has_cogc else None,
+            (item_lead + "本地市场") if data.has_localmarket else None,
+            (item_lead + "仓库") if data.has_warehouse else None,
+        ]
+        return "\n".join(filter(None, lines))
+
+    def format_planet_resources_list(self, data: PlanetDTO) -> str:
+        item_lead = self.config.list_item_lead
+        res = data.resources
+        lines = [
+            (
+                item_lead
+                + f"{r.ticker} ({
+                    '气态'
+                    if r.type == 'GASEOUS'
+                    else '液态'
+                    if r.type == 'LIQUID'
+                    else '固态'
+                }) - {r.daily_extraction:.2f}/天"
+            )
+            for r in res
+        ]
+        return "\n".join(filter(None, lines))
+
+    def format_cogc_program(self, program: CoGCProgramDTO) -> str:
+        item_lead = self.config.list_item_lead
+        program_name = program.type or "未知项目"
+        if program.time_until_start.total_seconds() > 0:
+            schedule = f"开始：{self.format_timedelta(program.time_until_start)}后"
+        else:
+            schedule = f"剩余：{self.format_timedelta(program.time_until_end)}"
+        return item_lead + f"{program_name} ({schedule})"
+
+    def format_planet(self, data: PlanetDTO) -> str:
+        lines = [
+            f"编号：{data.natural_id}",
+            f"名称：{data.name or data.natural_id}",
+            f"恒星系：{data.system_id}",
+            "派系：" + (data.faction if data.faction else "无"),
+            f"类型：{'岩质' if data.has_rock_surface else '气态'}",
+            f"肥沃度：{data.fertility}" if data.fertility > -1 else None,
+            f"重力：{data.gravity}",
+            f"温度：{data.temperature}",
+            f"压强：{data.pressure}",
+            "资源："
+            + (
+                "\n" + self.format_planet_resources_list(data)
+                if data.resources
+                else "无"
+            ),
+            "行星项目："
+            + (
+                ("\n" + self.format_planet_projects_list(data))
+                if any(
+                    [
+                        data.has_adm,
+                        data.has_cogc,
+                        data.has_localmarket,
+                        data.has_warehouse,
+                    ]
+                )
+                else "无"
+            ),
+            f"CoGC状态：{data.cogc_status}" if data.cogc_status else None,
+            "CoGC项目：\n" + self.format_cogc_program(data.cogc_program)
+            if data.cogc_program
+            else None,
+        ]
+        return "\n".join(filter(None, lines))
 
     def format_warnings(self, warnings: list[Exception]) -> str:
         if not warnings:

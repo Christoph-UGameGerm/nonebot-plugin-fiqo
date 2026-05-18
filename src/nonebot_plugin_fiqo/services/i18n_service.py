@@ -1,8 +1,6 @@
 from nonebot_plugin_fiqo.api import weblate_client
 from nonebot_plugin_fiqo.config import plugin_config
-from nonebot_plugin_fiqo.exceptions import (
-    I18nFetchError,
-)
+from nonebot_plugin_fiqo.exceptions import I18nFetchError
 
 
 class I18nService:
@@ -89,6 +87,19 @@ class I18nService:
             return "需配置Weblate API Token以获取描述"
         i18n_desc = await self.get_building_field(building_name, "description")
         return i18n_desc if i18n_desc else ""
+
+    async def get_cogc_program_i18n_name(self, program_name: str) -> str:
+        if not self._weblate_authorized:
+            return program_name + "（需配置Weblate API Token以获取中文名称）"
+        query = "key:CoGCProgram"
+        cache_key = "wl:cogc_prog"
+        exact_key = f"CoGCProgram.{program_name}"
+
+        i18n_dict = await weblate_client.get_units(query=query, cache_key=cache_key)
+        result = i18n_dict.translations.get(exact_key)
+        if not result:
+            raise I18nFetchError(f"CoGC项目{program_name}未找到")
+        return result
 
 
 i18n_service = I18nService()

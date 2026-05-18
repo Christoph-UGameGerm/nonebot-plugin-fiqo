@@ -1,19 +1,24 @@
 import asyncio
 
 from nonebot import logger
+from pydantic import ValidationError
 
-from nonebot_plugin_fiqo.api import fio_client
+from nonebot_plugin_fiqo.api import fio_client, planner_client
 from nonebot_plugin_fiqo.utils import (
     global_formatter,
 )
 from nonebot_plugin_fiqo.config import plugin_config
 from nonebot_plugin_fiqo.models import (
+    PlanetDTO,
     BuildingDTO,
     MaterialDTO,
     CXMaterialDTO,
     UserAndCompanyDTO,
 )
 from nonebot_plugin_fiqo.exceptions import (
+    I18nFetchError,
+    BadConnectionError,
+    PlanetNotFoundError,
     WrongUsernameOrCompanyTickerError,
 )
 
@@ -155,8 +160,43 @@ class GameInfoService:
         return (ticker, matches)
 
     @staticmethod
+    async def get_planet_dto(name_or_id: str) -> PlanetDTO:
+        fio_info = await fio_client.get_planet_info(name_or_id)
+        try:
+            planner_planets = await planner_client.get_planet_info(fio_info.natural_id)
+        except (BadConnectionError, PlanetNotFoundError, ValidationError) as e:
+            logger.warning(
+                f"Planner planet data unavailable for {fio_info.natural_id=}: {e}"
+            )
+            planner_info = None
+        else:
+            planner_info = next(
+                (
+                    planet
+                    for planet in planner_planets
+                    if planet.natural_id == fio_info.natural_id
+                ),
+                None,
+            )
+            if planner_info is None:
+                logger.warning(
+                    f"Planner planet data mismatched for {fio_info.natural_id=}"
+                )
+
+        data = PlanetDTO.from_sources(fio_info, planner_info)
+        if data.cogc_program is not None and data.cogc_program.type is not None:
+            try:
+                data.cogc_program.type = await i18n_service.get_cogc_program_i18n_name(
+                    data.cogc_program.type
+                )
+            except I18nFetchError as e:
+                logger.warning(f"CoGC program i18n unavailable: {e}")
+        return data
+
+    @staticmethod
     async def get_planet_info(name_or_id: str) -> str:
-        raise NotImplementedError
+        info = await GameInfoService.get_planet_dto(name_or_id)
+        return global_formatter.format_planet(info)
 
 
 info_service = GameInfoService()

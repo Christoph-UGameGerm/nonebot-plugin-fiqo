@@ -223,6 +223,121 @@ class UserAndCompanyDTO(FIQOBaseDTO):
         return self
 
 
+class PlanetResourceDTO(FIQOBaseDTO):
+    type: str = Field(validation_alias="resource_type")
+    factor: float
+    ticker: str = Field(validation_alias="material_ticker")
+    daily_extraction: float
+    max_extraction_in_world: float = Field(validation_alias="max_daily_extraction")
+
+
+class CoGCProgramDTO(FIQOBaseDTO):
+    type: str | None = Field(default=None, validation_alias="program_type")
+    start_epoch_ms: int = Field(validation_alias="start_epochms")
+    end_epoch_ms: int = Field(validation_alias="end_epochms")
+
+    @computed_field
+    @property
+    def time_until_start(self) -> timedelta:
+        return timedelta(milliseconds=self.start_epoch_ms - time.time() * 1000)
+
+    @computed_field
+    @property
+    def time_until_end(self) -> timedelta:
+        return timedelta(milliseconds=self.end_epoch_ms - time.time() * 1000)
+
+
+class FioPlanetDTO(FIQOBaseDTO):
+    natural_id: str = Field(validation_alias="planet_natural_id")
+    name: str | None = Field(default=None, validation_alias="planet_name")
+    system_id: str
+    faction: str | None = Field(default=None, validation_alias="faction_code")
+    has_rock_surface: bool = Field(validation_alias="surface")
+    fertility: float
+    gravity: float
+    temperature: float
+    pressure: float
+    has_adm: bool = Field(validation_alias="has_administrationcenter")
+    has_cogc: bool = Field(validation_alias="has_chamberofcommerce")
+    has_localmarket: bool
+    has_warehouse: bool
+    has_shipyard: bool
+    cogc_status: str | None = Field(
+        default=None, validation_alias="cogc_program_status"
+    )
+    cogc_programs: list[CoGCProgramDTO] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def filter_expired_programs(self) -> "FioPlanetDTO":
+        current_ms = time.time() * 1000
+        self.cogc_programs = [
+            p for p in self.cogc_programs if p.end_epoch_ms > current_ms
+        ]
+        return self
+
+
+class PlannerPlanetDTO(FIQOBaseDTO):
+    natural_id: str = Field(validation_alias="planet_natural_id")
+    resources: list[PlanetResourceDTO] = Field(default_factory=list)
+
+
+class PlanetDTO(FIQOBaseDTO):
+    natural_id: str
+    name: str | None = None
+    system_id: str
+    faction: str | None = None
+    has_rock_surface: bool
+    fertility: float
+    gravity: float
+    temperature: float
+    pressure: float
+    has_adm: bool
+    has_cogc: bool
+    has_localmarket: bool
+    has_warehouse: bool
+    has_shipyard: bool
+    cogc_status: str | None = None
+    resources: list[PlanetResourceDTO] = Field(default_factory=list)
+    cogc_program: CoGCProgramDTO | None = None
+
+    @classmethod
+    def from_sources(
+        cls,
+        fio: FioPlanetDTO,
+        planner: PlannerPlanetDTO | None = None,
+    ) -> "PlanetDTO":
+        current_ms = time.time() * 1000
+        active_programs = [
+            p
+            for p in fio.cogc_programs
+            if p.start_epoch_ms <= current_ms < p.end_epoch_ms
+        ]
+        current_program = (
+            max(active_programs, key=lambda p: p.start_epoch_ms)
+            if active_programs
+            else None
+        )
+        return cls(
+            natural_id=fio.natural_id,
+            name=fio.name,
+            system_id=fio.system_id,
+            faction=fio.faction,
+            has_rock_surface=fio.has_rock_surface,
+            fertility=fio.fertility,
+            gravity=fio.gravity,
+            temperature=fio.temperature,
+            pressure=fio.pressure,
+            has_adm=fio.has_adm,
+            has_cogc=fio.has_cogc,
+            has_localmarket=fio.has_localmarket,
+            has_warehouse=fio.has_warehouse,
+            has_shipyard=fio.has_shipyard,
+            cogc_status=fio.cogc_status,
+            resources=planner.resources if planner else [],
+            cogc_program=current_program,
+        )
+
+
 class I18nDictDTO(BaseModel):
     translations: dict[str, str]
 
