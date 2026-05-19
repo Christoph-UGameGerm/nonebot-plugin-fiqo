@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 
 import pytest
 from fake import fake_group_message_event_v11
@@ -173,6 +174,7 @@ def install_mock_system_info(
         return SystemDTO(
             natural_id=natural_id,
             name=name,
+            meteoroid_density=0.0,
         )
 
     monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
@@ -235,6 +237,150 @@ def test_planet_dto_fertility_percent_handles_non_fertile_planet():
     )
 
     assert dto.fertility_percent == 0
+
+
+def test_planet_dto_environment_display_strings():
+    from nonebot_plugin_fiqo.models import PlanetDTO
+
+    low = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=True,
+        fertility=0.5,
+        gravity=0.18,
+        temperature=-42.3,
+        pressure=0.12,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+    )
+    suitable = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=False,
+        fertility=0.5,
+        gravity=1.02,
+        temperature=16.25,
+        pressure=1.01,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+    )
+    high = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=True,
+        fertility=0.5,
+        gravity=2.83,
+        temperature=96.4,
+        pressure=2.31,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+    )
+
+    assert low.type_display == "岩质（MCG x4/面积）"
+    assert low.gravity_display == "0.18（低重力，MGC x1/建筑）"
+    assert low.temperature_display == "-42.30（低温，INS x10/面积）"
+    assert low.pressure_display == "0.12（低压，SEA x1/面积）"
+
+    assert suitable.type_display == "气态（AEF x面积/3）"
+    assert suitable.gravity_display == "1.02（适宜）"
+    assert suitable.temperature_display == "16.25（适宜）"
+    assert suitable.pressure_display == "1.01（适宜）"
+
+    assert high.gravity_display == "2.83（高重力，BL x1/建筑）"
+    assert high.temperature_display == "96.40（高温，TSH x1/建筑）"
+    assert high.pressure_display == "2.31（高压，HSE x1/建筑）"
+
+
+def test_formatter_planet_resources_list_uses_type_mapping():
+    from nonebot_plugin_fiqo.models import PlanetDTO, PlanetResourceDTO
+    from nonebot_plugin_fiqo.utils.formatters import global_formatter
+
+    dto = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=True,
+        fertility=0.5,
+        gravity=1.02,
+        temperature=24.0,
+        pressure=1.03,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+        resources=[
+            PlanetResourceDTO(
+                type="GASEOUS",
+                factor=0.25,
+                ticker="O",
+                daily_extraction=15.0,
+                max_extraction_in_world=43.26,
+            ),
+            PlanetResourceDTO(
+                type="MINERAL",
+                factor=0.05,
+                ticker="HAL",
+                daily_extraction=3.5,
+                max_extraction_in_world=20.47,
+            ),
+        ],
+    )
+
+    result = global_formatter.format_planet_resources_list(dto)
+
+    assert "O (气态) - 15.00/天" in result
+    assert "HAL (固态) - 3.50/天" in result
+
+
+def test_formatter_cx_material_keeps_order_book_formatting():
+    from nonebot_plugin_fiqo.models import CXMaterialDTO
+    from nonebot_plugin_fiqo.utils.formatters import global_formatter
+
+    dto = CXMaterialDTO(
+        ticker="RAT",
+        exchange="NC1",
+        currency="ICA",
+        price=100.0,
+        ask_price=101.0,
+        ask_size=10,
+        bid_price=99.0,
+        bid_size=8,
+        traded=200,
+        supply=300,
+        demand=250,
+        MM_buy=None,
+        MM_sell=None,
+        timestamp=datetime.now(timezone.utc),
+        buy_orders=[
+            {"company_code": "DRML", "price": 99.0, "amount": 8},
+            {"company_code": "CIMM", "price": 98.5, "amount": None},
+        ],
+        sell_orders=[
+            {"company_code": "RX7", "price": 101.0, "amount": 10},
+            {"company_code": "RNHT", "price": 102.5, "amount": 2},
+        ],
+    )
+
+    result = global_formatter.format_cx_material(dto, 2)
+
+    assert "卖单前2：" in result
+    assert "买单前2：" in result
+    assert "∞ @  98.50 ICA [CIMM]" in result
+    assert "8 @  99.00 ICA [DRML]" in result
+    assert "10 @ 101.00 ICA [RX7]" in result
 
 
 @pytest.mark.asyncio

@@ -94,6 +94,7 @@ class BuildingDTO(FIQOBaseDTO):
 
 
 class CXOrder(FIQOBaseDTO):
+    company_code: str = Field(validation_alias="CompanyCode")
     price: float = Field(validation_alias="ItemCost")
     amount: float = Field(validation_alias="ItemCount")
 
@@ -332,6 +333,40 @@ class PlanetDTO(FIQOBaseDTO):
         if self.system_natural_id:
             return self.system_natural_id
         return self.system_id
+
+    @computed_field
+    @property
+    def type_display(self) -> str:
+        if self.has_rock_surface:
+            return "岩质（MCG x4/面积）"
+        return "气态（AEF x面积/3）"
+
+    @computed_field
+    @property
+    def gravity_display(self) -> str:
+        if self.gravity < 0.25:
+            return f"{self.gravity:.2f}（低重力，MGC x1/建筑）"
+        if self.gravity > 2.5:
+            return f"{self.gravity:.2f}（高重力，BL x1/建筑）"
+        return f"{self.gravity:.2f}（适宜）"
+
+    @computed_field
+    @property
+    def temperature_display(self) -> str:
+        if self.temperature < -25:
+            return f"{self.temperature:.2f}（低温，INS x10/面积）"
+        if self.temperature > 75:
+            return f"{self.temperature:.2f}（高温，TSH x1/建筑）"
+        return f"{self.temperature:.2f}（适宜）"
+
+    @computed_field
+    @property
+    def pressure_display(self) -> str:
+        if self.pressure < 0.25:
+            return f"{self.pressure:.2f}（低压，SEA x1/面积）"
+        if self.pressure > 2.0:
+            return f"{self.pressure:.2f}（高压，HSE x1/建筑）"
+        return f"{self.pressure:.2f}（适宜）"
 
     @classmethod
     def from_planner(
