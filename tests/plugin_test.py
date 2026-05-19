@@ -346,7 +346,7 @@ def test_formatter_planet_resources_list_uses_type_mapping():
 
 
 def test_formatter_cx_material_keeps_order_book_formatting():
-    from nonebot_plugin_fiqo.models import CXMaterialDTO
+    from nonebot_plugin_fiqo.models import CXOrder, CXMaterialDTO
     from nonebot_plugin_fiqo.utils.formatters import global_formatter
 
     dto = CXMaterialDTO(
@@ -365,12 +365,12 @@ def test_formatter_cx_material_keeps_order_book_formatting():
         MM_sell=None,
         timestamp=datetime.now(timezone.utc),
         buy_orders=[
-            {"company_code": "DRML", "price": 99.0, "amount": 8},
-            {"company_code": "CIMM", "price": 98.5, "amount": None},
+            CXOrder(company_code="DRML", price=99.0, amount=8),
+            CXOrder(company_code="CIMM", price=98.5, amount=None),
         ],
         sell_orders=[
-            {"company_code": "RX7", "price": 101.0, "amount": 10},
-            {"company_code": "RNHT", "price": 102.5, "amount": 2},
+            CXOrder(company_code="RX7", price=101.0, amount=10),
+            CXOrder(company_code="RNHT", price=102.5, amount=2),
         ],
     )
 
