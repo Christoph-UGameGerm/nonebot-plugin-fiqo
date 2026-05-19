@@ -3,16 +3,16 @@ from pydantic import BaseModel
 
 from nonebot_plugin_fiqo.models import (
     RecipeDTO,
+    SystemDTO,
     BuildingDTO,
     MaterialDTO,
-    FioPlanetDTO,
     CXMaterialDTO,
     UserAndCompanyDTO,
 )
 from nonebot_plugin_fiqo.exceptions import (
     WrongCXTickerError,
-    PlanetNotFoundError,
     WrongRecipeTickerError,
+    WrongSystemTickerError,
     WrongBuildingTickerError,
     WrongMaterialTickerError,
     WrongUsernameOrCompanyTickerError,
@@ -30,7 +30,7 @@ class FioEndpoint(BaseModel):
     co_usr_username: str = "/user/"
     co_usr_company_code: str = "/company/code/"
     co_usr_company_name: str = "/company/name/"
-    planet: str = "/planet/"
+    system: str = "/systemstars/star/"
 
 
 ENDPOINTS = FioEndpoint()
@@ -111,16 +111,13 @@ class FioClient(BaseClient):
             ttl=None,
         )
 
-    async def get_planet_info(self, query_str: str) -> FioPlanetDTO:
+    async def get_system_info(self, system_id_or_name: str) -> SystemDTO:
         return await self.request(
-            key_and_model=(
-                f"fio:planet:{query_str}",
-                FioPlanetDTO,
-            ),
-            endpoint=f"{ENDPOINTS.planet}{query_str}",
+            key_and_model=(f"fio:system:{system_id_or_name}", SystemDTO),
+            endpoint=f"{ENDPOINTS.system}{system_id_or_name}",
             params=None,
-            not_found_error=PlanetNotFoundError(query_str),
-            ttl=None,
+            not_found_error=WrongSystemTickerError(system_id_or_name),
+            ttl=86400,
         )
 
 

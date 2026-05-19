@@ -101,5 +101,19 @@ class I18nService:
             raise I18nFetchError(f"CoGC项目{program_name}未找到")
         return result
 
+    async def get_cogc_i18n_status(self, status: str) -> str:
+        if not self._weblate_authorized:
+            return status + "（需配置Weblate API Token以获取中文状态）"
+        query = "key:CoGCStatus"
+        cache_key = "wl:cogc_status"
+        formatted_status = status.upper()
+        exact_key = f"CoGCStatus.{formatted_status}"
+
+        i18n_dict = await weblate_client.get_units(query=query, cache_key=cache_key)
+        result = i18n_dict.translations.get(exact_key)
+        if not result:
+            raise I18nFetchError(f"CoGC项目状态{status}未找到")
+        return result
+
 
 i18n_service = I18nService()

@@ -66,6 +66,11 @@ class PlanetNotFoundError(ResourceNotFoundError):
         super().__init__("行星名称或ID", name_or_id)
 
 
+class WrongSystemTickerError(ResourceNotFoundError):
+    def __init__(self, ticker: str) -> None:
+        super().__init__("恒星系名称或ID", ticker)
+
+
 # =============================================
 # Network and Communication Errors
 # =============================================

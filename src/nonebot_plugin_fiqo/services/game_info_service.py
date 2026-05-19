@@ -4,9 +4,7 @@ from nonebot import logger
 from pydantic import ValidationError
 
 from nonebot_plugin_fiqo.api import fio_client, planner_client
-from nonebot_plugin_fiqo.utils import (
-    global_formatter,
-)
+from nonebot_plugin_fiqo.utils import global_formatter
 from nonebot_plugin_fiqo.config import plugin_config
 from nonebot_plugin_fiqo.models import (
     PlanetDTO,
@@ -19,6 +17,7 @@ from nonebot_plugin_fiqo.exceptions import (
     I18nFetchError,
     BadConnectionError,
     PlanetNotFoundError,
+    WrongSystemTickerError,
     WrongUsernameOrCompanyTickerError,
 )
 
@@ -161,29 +160,45 @@ class GameInfoService:
 
     @staticmethod
     async def get_planet_dto(name_or_id: str) -> PlanetDTO:
-        fio_info = await fio_client.get_planet_info(name_or_id)
         try:
-            planner_planets = await planner_client.get_planet_info(fio_info.natural_id)
+            planner_planets = await planner_client.get_planet_info(name_or_id)
         except (BadConnectionError, PlanetNotFoundError, ValidationError) as e:
-            logger.warning(
-                f"Planner planet data unavailable for {fio_info.natural_id=}: {e}"
-            )
-            planner_info = None
-        else:
-            planner_info = next(
-                (
-                    planet
-                    for planet in planner_planets
-                    if planet.natural_id == fio_info.natural_id
-                ),
-                None,
-            )
-            if planner_info is None:
-                logger.warning(
-                    f"Planner planet data mismatched for {fio_info.natural_id=}"
-                )
+            logger.warning(f"Planner planet data unavailable for {name_or_id=}: {e}")
+            raise
 
-        data = PlanetDTO.from_sources(fio_info, planner_info)
+        query_normalized = name_or_id.casefold()
+        planner_info = next(
+            (
+                planet
+                for planet in planner_planets
+                if planet.natural_id.casefold() == query_normalized
+                or (
+                    planet.name is not None
+                    and planet.name.casefold() == query_normalized
+                )
+            ),
+            planner_planets[0] if len(planner_planets) == 1 else None,
+        )
+        if planner_info is None:
+            raise PlanetNotFoundError(name_or_id)
+
+        data = PlanetDTO.from_planner(planner_info)
+        try:
+            system_info = await fio_client.get_system_info(data.system_id)
+        except (BadConnectionError, ValidationError, WrongSystemTickerError) as e:
+            logger.warning(f"System data unavailable for {data.system_id=}: {e}")
+        else:
+            data.system_name = system_info.name
+            data.system_natural_id = system_info.natural_id
+
+        if data.cogc_status is not None:
+            try:
+                data.cogc_status = await i18n_service.get_cogc_i18n_status(
+                    data.cogc_status
+                )
+            except I18nFetchError as e:
+                logger.warning(f"CoGC status i18n unavailable: {e}")
+
         if data.cogc_program is not None and data.cogc_program.type is not None:
             try:
                 data.cogc_program.type = await i18n_service.get_cogc_program_i18n_name(

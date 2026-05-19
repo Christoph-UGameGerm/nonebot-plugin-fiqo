@@ -110,7 +110,6 @@ async def test_mat(app: App, monkeypatch: pytest.MonkeyPatch):
     async with app.test_matcher(fiqo_material) as ctx:
         adapter = nonebot.get_adapter(OnebotV11Adapter)
         bot = ctx.create_bot(base=Bot, adapter=adapter)
-        ctx.receive_event(bot, event)
 
         # Mock concurrent permission checks (3 conditions in NORMALUSER)
         for _ in range(3):
@@ -128,45 +127,67 @@ async def test_mat(app: App, monkeypatch: pytest.MonkeyPatch):
             result=None,
             bot=bot,
         )
+        ctx.receive_event(bot, event)
         ctx.should_finished()
 
 
-@pytest.mark.asyncio
-async def test_planet_dto_merge(monkeypatch: pytest.MonkeyPatch):
-    from nonebot_plugin_fiqo.api import fio_client, planner_client
-    from nonebot_plugin_fiqo.models import (
-        FioPlanetDTO,
-        PlannerPlanetDTO,
-        PlanetResourceDTO,
-    )
-    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+def make_planner_planet(**overrides):
+    from nonebot_plugin_fiqo.models import PlannerPlanetDTO
 
-    async def mock_get_fio_planet_info(name_or_id: str) -> FioPlanetDTO:
-        assert name_or_id == "Katoa"
-        return FioPlanetDTO(
-            natural_id="VH-331a",
-            name="Katoa",
-            system_id="VH-331",
-            faction="IC1",
-            has_rock_surface=True,
-            fertility=0.5,
-            gravity=1.02,
-            temperature=24.0,
-            pressure=1.03,
-            has_adm=True,
-            has_cogc=False,
-            has_localmarket=True,
-            has_warehouse=True,
-            has_shipyard=False,
-            cogc_status=None,
-            cogc_programs=[],
+    data = {
+        "natural_id": "VH-331a",
+        "name": "Katoa",
+        "system_id": "f2f57766ebaca9d69efae41ccf4d8853",
+        "faction": "IC1",
+        "has_rock_surface": True,
+        "fertility": 0.5,
+        "gravity": 1.02,
+        "temperature": 24.0,
+        "pressure": 1.03,
+        "has_adm": True,
+        "has_cogc": False,
+        "has_localmarket": True,
+        "has_warehouse": True,
+        "has_shipyard": False,
+        "cogc_status": None,
+        "active_cogc_program_type": None,
+        "resources": [],
+        "cogc_programs": [],
+    }
+    data.update(overrides)
+    return PlannerPlanetDTO(**data)
+
+
+def install_mock_system_info(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    natural_id: str = "VH-331",
+    name: str = "Vallis Hydri",
+    system_id: str = "f2f57766ebaca9d69efae41ccf4d8853",
+):
+    from nonebot_plugin_fiqo.api import fio_client
+    from nonebot_plugin_fiqo.models import SystemDTO
+
+    async def mock_get_system_info(system_id_or_name: str):
+        assert system_id_or_name == system_id
+        return SystemDTO(
+            natural_id=natural_id,
+            name=name,
         )
 
-    async def mock_get_planner_planet_info(name_or_id: str) -> list[PlannerPlanetDTO]:
-        assert name_or_id == "VH-331a"
+    monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_uses_planner_data(monkeypatch: pytest.MonkeyPatch):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import PlanetResourceDTO
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
         return [
-            PlannerPlanetDTO(
-                natural_id="VH-331a",
+            make_planner_planet(
                 resources=[
                     PlanetResourceDTO(
                         type="LIQUID",
@@ -175,104 +196,91 @@ async def test_planet_dto_merge(monkeypatch: pytest.MonkeyPatch):
                         daily_extraction=123.45,
                         max_extraction_in_world=999.0,
                     )
-                ],
+                ]
             )
         ]
 
-    monkeypatch.setattr(fio_client, "get_planet_info", mock_get_fio_planet_info)
     monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    install_mock_system_info(monkeypatch)
 
     dto = await GameInfoService.get_planet_dto("Katoa")
 
     assert dto.natural_id == "VH-331a"
     assert dto.name == "Katoa"
+    assert dto.system_display_name == "Vallis Hydri (VH-331)"
     assert dto.resources
     assert dto.resources[0].ticker == "H2O"
+    assert dto.fertility_percent == pytest.approx(115.15)
+
+
+def test_planet_dto_fertility_percent_handles_non_fertile_planet():
+    from nonebot_plugin_fiqo.models import PlanetDTO
+
+    dto = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        faction="IC1",
+        has_rock_surface=True,
+        fertility=-1,
+        gravity=1.02,
+        temperature=24.0,
+        pressure=1.03,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+        cogc_status=None,
+    )
+
+    assert dto.fertility_percent == 0
 
 
 @pytest.mark.asyncio
-async def test_planet_dto_merge_without_planner(monkeypatch: pytest.MonkeyPatch):
-    from nonebot_plugin_fiqo.api import fio_client, planner_client
-    from nonebot_plugin_fiqo.models import FioPlanetDTO
-    from nonebot_plugin_fiqo.exceptions import BadConnectionError
+async def test_planet_dto_raises_not_found_on_empty_planner_result(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.exceptions import PlanetNotFoundError
     from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
-    async def mock_get_fio_planet_info(name_or_id: str) -> FioPlanetDTO:
+    async def mock_get_planner_planet_info(name_or_id: str):
         assert name_or_id == "Katoa"
-        return FioPlanetDTO(
-            natural_id="VH-331a",
-            name="Katoa",
-            system_id="VH-331",
-            faction="IC1",
-            has_rock_surface=True,
-            fertility=0.5,
-            gravity=1.02,
-            temperature=24.0,
-            pressure=1.03,
-            has_adm=True,
-            has_cogc=False,
-            has_localmarket=True,
-            has_warehouse=True,
-            has_shipyard=False,
-            cogc_status=None,
-            cogc_programs=[],
-        )
+        return []
 
-    async def mock_get_planner_planet_info(name_or_id: str) -> list[object]:
-        assert name_or_id == "VH-331a"
-        raise BadConnectionError("planner unavailable")
-
-    monkeypatch.setattr(fio_client, "get_planet_info", mock_get_fio_planet_info)
     monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
 
-    dto = await GameInfoService.get_planet_dto("Katoa")
-
-    assert dto.natural_id == "VH-331a"
-    assert dto.name == "Katoa"
-    assert dto.resources == []
+    with pytest.raises(PlanetNotFoundError):
+        await GameInfoService.get_planet_dto("Katoa")
 
 
 @pytest.mark.asyncio
 async def test_planet_dto_merge_with_none_cogc_program_type(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from nonebot_plugin_fiqo.api import fio_client, planner_client
-    from nonebot_plugin_fiqo.models import FioPlanetDTO, CoGCProgramDTO
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
     from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
-    async def mock_get_fio_planet_info(name_or_id: str) -> FioPlanetDTO:
+    async def mock_get_planner_planet_info(name_or_id: str):
         assert name_or_id == "Katoa"
-        return FioPlanetDTO(
-            natural_id="VH-331a",
-            name="Katoa",
-            system_id="VH-331",
-            faction="IC1",
-            has_rock_surface=True,
-            fertility=0.5,
-            gravity=1.02,
-            temperature=24.0,
-            pressure=1.03,
-            has_adm=True,
-            has_cogc=True,
-            has_localmarket=True,
-            has_warehouse=True,
-            has_shipyard=False,
-            cogc_status="ACTIVE",
-            cogc_programs=[
-                CoGCProgramDTO(
-                    type=None,
-                    start_epoch_ms=0,
-                    end_epoch_ms=4102444800000,
-                )
-            ],
-        )
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type=None,
+                        start_epoch_ms=0,
+                        end_epoch_ms=4102444800000,
+                    )
+                ],
+            )
+        ]
 
-    async def mock_get_planner_planet_info(name_or_id: str) -> list[object]:
-        assert name_or_id == "VH-331a"
-        return []
-
-    monkeypatch.setattr(fio_client, "get_planet_info", mock_get_fio_planet_info)
     monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    install_mock_system_info(monkeypatch)
 
     dto = await GameInfoService.get_planet_dto("Katoa")
 
@@ -281,58 +289,96 @@ async def test_planet_dto_merge_with_none_cogc_program_type(
 
 
 @pytest.mark.asyncio
-async def test_planet_dto_keeps_latest_active_cogc_program(
+async def test_planet_dto_prefers_active_cogc_program_type(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from nonebot_plugin_fiqo.api import fio_client, planner_client
-    from nonebot_plugin_fiqo.models import FioPlanetDTO, CoGCProgramDTO
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
     from nonebot_plugin_fiqo.services.i18n_service import i18n_service
     from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
-    async def mock_get_fio_planet_info(name_or_id: str) -> FioPlanetDTO:
+    async def mock_get_planner_planet_info(name_or_id: str):
         assert name_or_id == "Katoa"
-        return FioPlanetDTO(
-            natural_id="VH-331a",
-            name="Katoa",
-            system_id="VH-331",
-            faction="IC1",
-            has_rock_surface=True,
-            fertility=0.5,
-            gravity=1.02,
-            temperature=24.0,
-            pressure=1.03,
-            has_adm=True,
-            has_cogc=True,
-            has_localmarket=True,
-            has_warehouse=True,
-            has_shipyard=False,
-            cogc_status="ACTIVE",
-            cogc_programs=[
-                CoGCProgramDTO(
-                    type="OLDER",
-                    start_epoch_ms=1700000000000,
-                    end_epoch_ms=4102444800000,
-                ),
-                CoGCProgramDTO(
-                    type="NEWER",
-                    start_epoch_ms=1750000000000,
-                    end_epoch_ms=4102444800000,
-                ),
-            ],
-        )
-
-    async def mock_get_planner_planet_info(name_or_id: str) -> list[object]:
-        assert name_or_id == "VH-331a"
-        return []
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="OLDER",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="OLDER",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                    CoGCProgramDTO(
+                        type="NEWER",
+                        start_epoch_ms=1750000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                ],
+            )
+        ]
 
     async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
         return program_name
 
-    monkeypatch.setattr(fio_client, "get_planet_info", mock_get_fio_planet_info)
+    async def mock_get_cogc_i18n_status(status: str) -> str:
+        assert status == "ACTIVE"
+        return "已生效"
+
     monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
     monkeypatch.setattr(
         i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
     )
+    monkeypatch.setattr(i18n_service, "get_cogc_i18n_status", mock_get_cogc_i18n_status)
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_status == "已生效"
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type == "OLDER"
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_keeps_latest_active_cogc_program(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="MISSING",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="OLDER",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                    CoGCProgramDTO(
+                        type="NEWER",
+                        start_epoch_ms=1750000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                ],
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        return program_name
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+    install_mock_system_info(monkeypatch)
 
     dto = await GameInfoService.get_planet_dto("Katoa")
 
@@ -344,53 +390,44 @@ async def test_planet_dto_keeps_latest_active_cogc_program(
 async def test_planet_dto_keeps_original_cogc_program_name_on_i18n_error(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from nonebot_plugin_fiqo.api import fio_client, planner_client
-    from nonebot_plugin_fiqo.models import FioPlanetDTO, CoGCProgramDTO
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
     from nonebot_plugin_fiqo.exceptions import I18nFetchError
     from nonebot_plugin_fiqo.services.i18n_service import i18n_service
     from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
-    async def mock_get_fio_planet_info(name_or_id: str) -> FioPlanetDTO:
+    async def mock_get_planner_planet_info(name_or_id: str):
         assert name_or_id == "Katoa"
-        return FioPlanetDTO(
-            natural_id="VH-331a",
-            name="Katoa",
-            system_id="VH-331",
-            faction="IC1",
-            has_rock_surface=True,
-            fertility=0.5,
-            gravity=1.02,
-            temperature=24.0,
-            pressure=1.03,
-            has_adm=True,
-            has_cogc=True,
-            has_localmarket=True,
-            has_warehouse=True,
-            has_shipyard=False,
-            cogc_status="ACTIVE",
-            cogc_programs=[
-                CoGCProgramDTO(
-                    type="ORIGINAL",
-                    start_epoch_ms=1700000000000,
-                    end_epoch_ms=4102444800000,
-                )
-            ],
-        )
-
-    async def mock_get_planner_planet_info(name_or_id: str) -> list[object]:
-        assert name_or_id == "VH-331a"
-        return []
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="ORIGINAL",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="ORIGINAL",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    )
+                ],
+            )
+        ]
 
     async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
         raise I18nFetchError(program_name)
 
-    monkeypatch.setattr(fio_client, "get_planet_info", mock_get_fio_planet_info)
+    async def mock_get_cogc_i18n_status(status: str) -> str:
+        raise I18nFetchError(status)
+
     monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
     monkeypatch.setattr(
         i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
     )
+    monkeypatch.setattr(i18n_service, "get_cogc_i18n_status", mock_get_cogc_i18n_status)
+    install_mock_system_info(monkeypatch)
 
     dto = await GameInfoService.get_planet_dto("Katoa")
 
+    assert dto.cogc_status == "ACTIVE"
     assert dto.cogc_program is not None
     assert dto.cogc_program.type == "ORIGINAL"

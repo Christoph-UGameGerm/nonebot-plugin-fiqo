@@ -276,14 +276,14 @@ class Formatter:
     def format_planet(self, data: PlanetDTO) -> str:
         lines = [
             f"编号：{data.natural_id}",
-            f"名称：{data.name or data.natural_id}",
-            f"恒星系：{data.system_id}",
+            "名称：" + (data.name if data.name else "无"),
+            f"恒星系：{data.system_display_name}",
             "派系：" + (data.faction if data.faction else "无"),
             f"类型：{'岩质' if data.has_rock_surface else '气态'}",
-            f"肥沃度：{data.fertility}" if data.fertility > -1 else None,
-            f"重力：{data.gravity}",
-            f"温度：{data.temperature}",
-            f"压强：{data.pressure}",
+            f"肥沃度：{data.fertility_percent:.2f}%",
+            f"重力：{data.gravity:.2f}",
+            f"温度：{data.temperature:.2f}",
+            f"压强：{data.pressure:.2f}",
             "资源："
             + (
                 "\n" + self.format_planet_resources_list(data)

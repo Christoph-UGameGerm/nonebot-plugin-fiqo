@@ -247,7 +247,7 @@ class CoGCProgramDTO(FIQOBaseDTO):
         return timedelta(milliseconds=self.end_epoch_ms - time.time() * 1000)
 
 
-class FioPlanetDTO(FIQOBaseDTO):
+class PlannerPlanetDTO(FIQOBaseDTO):
     natural_id: str = Field(validation_alias="planet_natural_id")
     name: str | None = Field(default=None, validation_alias="planet_name")
     system_id: str
@@ -265,26 +265,37 @@ class FioPlanetDTO(FIQOBaseDTO):
     cogc_status: str | None = Field(
         default=None, validation_alias="cogc_program_status"
     )
+    active_cogc_program_type: str | None = None
+    resources: list[PlanetResourceDTO] = Field(default_factory=list)
     cogc_programs: list[CoGCProgramDTO] = Field(default_factory=list)
+    cogc_program: CoGCProgramDTO | None = None
 
     @model_validator(mode="after")
-    def filter_expired_programs(self) -> "FioPlanetDTO":
+    def select_current_cogc_program(self) -> "PlannerPlanetDTO":
         current_ms = time.time() * 1000
-        self.cogc_programs = [
-            p for p in self.cogc_programs if p.end_epoch_ms > current_ms
+        active_programs = [
+            p
+            for p in self.cogc_programs
+            if p.start_epoch_ms <= current_ms < p.end_epoch_ms
         ]
+
+        if self.active_cogc_program_type:
+            self.cogc_program = next(
+                (p for p in active_programs if p.type == self.active_cogc_program_type),
+                None,
+            )
+
+        if self.cogc_program is None and active_programs:
+            self.cogc_program = max(active_programs, key=lambda p: p.start_epoch_ms)
         return self
-
-
-class PlannerPlanetDTO(FIQOBaseDTO):
-    natural_id: str = Field(validation_alias="planet_natural_id")
-    resources: list[PlanetResourceDTO] = Field(default_factory=list)
 
 
 class PlanetDTO(FIQOBaseDTO):
     natural_id: str
     name: str | None = None
     system_id: str
+    system_name: str | None = None
+    system_natural_id: str | None = None
     faction: str | None = None
     has_rock_surface: bool
     fertility: float
@@ -300,42 +311,58 @@ class PlanetDTO(FIQOBaseDTO):
     resources: list[PlanetResourceDTO] = Field(default_factory=list)
     cogc_program: CoGCProgramDTO | None = None
 
+    @computed_field
+    @property
+    def fertility_percent(self) -> float:
+        if self.fertility == -1:
+            return 0.0
+        return 100 + 30.3 * self.fertility
+
+    @computed_field
+    @property
+    def system_display_name(self) -> str:
+        if (
+            self.system_name
+            and self.system_natural_id
+            and self.system_name != self.system_natural_id
+        ):
+            return f"{self.system_name} ({self.system_natural_id})"
+        if self.system_name:
+            return self.system_name
+        if self.system_natural_id:
+            return self.system_natural_id
+        return self.system_id
+
     @classmethod
-    def from_sources(
+    def from_planner(
         cls,
-        fio: FioPlanetDTO,
-        planner: PlannerPlanetDTO | None = None,
+        planner: PlannerPlanetDTO,
     ) -> "PlanetDTO":
-        current_ms = time.time() * 1000
-        active_programs = [
-            p
-            for p in fio.cogc_programs
-            if p.start_epoch_ms <= current_ms < p.end_epoch_ms
-        ]
-        current_program = (
-            max(active_programs, key=lambda p: p.start_epoch_ms)
-            if active_programs
-            else None
-        )
         return cls(
-            natural_id=fio.natural_id,
-            name=fio.name,
-            system_id=fio.system_id,
-            faction=fio.faction,
-            has_rock_surface=fio.has_rock_surface,
-            fertility=fio.fertility,
-            gravity=fio.gravity,
-            temperature=fio.temperature,
-            pressure=fio.pressure,
-            has_adm=fio.has_adm,
-            has_cogc=fio.has_cogc,
-            has_localmarket=fio.has_localmarket,
-            has_warehouse=fio.has_warehouse,
-            has_shipyard=fio.has_shipyard,
-            cogc_status=fio.cogc_status,
-            resources=planner.resources if planner else [],
-            cogc_program=current_program,
+            natural_id=planner.natural_id,
+            name=planner.name,
+            system_id=planner.system_id,
+            faction=planner.faction,
+            has_rock_surface=planner.has_rock_surface,
+            fertility=planner.fertility,
+            gravity=planner.gravity,
+            temperature=planner.temperature,
+            pressure=planner.pressure,
+            has_adm=planner.has_adm,
+            has_cogc=planner.has_cogc,
+            has_localmarket=planner.has_localmarket,
+            has_warehouse=planner.has_warehouse,
+            has_shipyard=planner.has_shipyard,
+            cogc_status=planner.cogc_status,
+            resources=planner.resources,
+            cogc_program=planner.cogc_program,
         )
+
+
+class SystemDTO(FIQOBaseDTO):
+    natural_id: str = Field(validation_alias="SystemNaturalId")
+    name: str = Field(validation_alias="SystemName")
+    meteoroid_density: float = Field(validation_alias="MeteoroidDensity")
 
 
 class I18nDictDTO(BaseModel):
