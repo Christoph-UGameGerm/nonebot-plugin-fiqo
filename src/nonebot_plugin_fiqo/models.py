@@ -273,18 +273,24 @@ class PlannerPlanetDTO(FIQOBaseDTO):
 
     @model_validator(mode="after")
     def select_current_cogc_program(self) -> "PlannerPlanetDTO":
+        if self.active_cogc_program_type:
+            self.cogc_program = next(
+                (
+                    p
+                    for p in self.cogc_programs
+                    if p.type == self.active_cogc_program_type
+                ),
+                None,
+            )
+            if self.cogc_program is not None:
+                return self
+
         current_ms = time.time() * 1000
         active_programs = [
             p
             for p in self.cogc_programs
             if p.start_epoch_ms <= current_ms < p.end_epoch_ms
         ]
-
-        if self.active_cogc_program_type:
-            self.cogc_program = next(
-                (p for p in active_programs if p.type == self.active_cogc_program_type),
-                None,
-            )
 
         if self.cogc_program is None and active_programs:
             self.cogc_program = max(active_programs, key=lambda p: p.start_epoch_ms)

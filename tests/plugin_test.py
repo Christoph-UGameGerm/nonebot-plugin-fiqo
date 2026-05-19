@@ -402,6 +402,29 @@ async def test_planet_dto_raises_not_found_on_empty_planner_result(
 
 
 @pytest.mark.asyncio
+async def test_planet_dto_rejects_single_non_exact_planner_result(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.exceptions import PlanetNotFoundError
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                natural_id="VH-331b",
+                name="Katoa Prime",
+            )
+        ]
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+
+    with pytest.raises(PlanetNotFoundError):
+        await GameInfoService.get_planet_dto("Katoa")
+
+
+@pytest.mark.asyncio
 async def test_planet_dto_merge_with_none_cogc_program_type(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -484,6 +507,52 @@ async def test_planet_dto_prefers_active_cogc_program_type(
     assert dto.cogc_status == "已生效"
     assert dto.cogc_program is not None
     assert dto.cogc_program.type == "OLDER"
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_prefers_active_cogc_program_type_outside_local_window(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="ACTIVE_FROM_PLANNER",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="ACTIVE_FROM_PLANNER",
+                        start_epoch_ms=0,
+                        end_epoch_ms=1,
+                    ),
+                    CoGCProgramDTO(
+                        type="LOCAL_ACTIVE",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                ],
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        return program_name
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type == "ACTIVE_FROM_PLANNER"
 
 
 @pytest.mark.asyncio

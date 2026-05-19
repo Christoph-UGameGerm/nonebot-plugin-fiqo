@@ -177,7 +177,7 @@ class GameInfoService:
                     and planet.name.casefold() == query_normalized
                 )
             ),
-            planner_planets[0] if len(planner_planets) == 1 else None,
+            None,
         )
         if planner_info is None:
             raise PlanetNotFoundError(name_or_id)
