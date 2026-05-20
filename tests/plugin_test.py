@@ -366,7 +366,9 @@ def test_formatter_cx_material_keeps_order_book_formatting():
         timestamp=datetime.now(timezone.utc),
         buy_orders=[
             CXOrder(company_code="DRML", price=99.0, amount=8),
-            CXOrder(company_code="CIMM", price=98.5, amount=None),
+            CXOrder.model_validate(
+                {"company_code": "CIMM", "price": 98.5, "amount": None}
+            ),
         ],
         sell_orders=[
             CXOrder(company_code="RX7", price=101.0, amount=10),
