@@ -15,16 +15,24 @@ from nonebot_plugin_fiqo.config import (
 )
 from nonebot_plugin_fiqo.models import (
     CXOrder,
+    PlanetDTO,
     RecipeDTO,
     BuildingDTO,
     MaterialDTO,
     BasePlanetDTO,
     CXMaterialDTO,
     ServiceResult,
+    CoGCProgramDTO,
     CostMaterialDTO,
     OfficePlanetDTO,
     UserAndCompanyDTO,
 )
+
+PLANET_RESOURCE_TYPE_LABELS = {
+    "GASEOUS": "气态",
+    "LIQUID": "液态",
+    "MINERAL": "固态",
+}
 
 
 class Formatter:
@@ -73,44 +81,79 @@ class Formatter:
             return "∞"
         return str(int(order.amount))
 
-    def format_cx_buy_order_list(
-        self, data: list[CXOrder], currency: str, order_no: int
+    def _format_cx_order_list(
+        self,
+        data: list[CXOrder],
+        currency: str,
+        order_no: int,
+        order_amount_field_width: int,
+        order_price_field_width: int,
+        *,
+        reverse: bool = False,
     ) -> str:
         space_lead = " " * len(self.config.list_item_lead)
+        orders = reversed(data[:order_no]) if reverse else data[:order_no]
         return "\n".join(
             [
                 space_lead
-                + f"{self._format_cx_order_amount(order):>{self.order_amount_field_width}}"  # noqa: E501
+                + f"{self._format_cx_order_amount(order):>{order_amount_field_width}}"
                 + " @ "
-                + f"{order.price:.2f} {currency}".rjust(self.order_price_field_width)
-                for order in data[:order_no]
+                + f"{order.price:.2f} {currency}".rjust(order_price_field_width)
+                + f" [{order.company_code}]"
+                for order in orders
             ]
+        )
+
+    def format_cx_buy_order_list(
+        self,
+        data: list[CXOrder],
+        currency: str,
+        order_no: int,
+        order_amount_field_width: int,
+        order_price_field_width: int,
+    ) -> str:
+        return self._format_cx_order_list(
+            data,
+            currency,
+            order_no,
+            order_amount_field_width,
+            order_price_field_width,
         )
 
     def format_cx_sell_order_list(
-        self, data: list[CXOrder], currency: str, order_no: int
+        self,
+        data: list[CXOrder],
+        currency: str,
+        order_no: int,
+        order_amount_field_width: int,
+        order_price_field_width: int,
     ) -> str:
-        space_lead = " " * len(self.config.list_item_lead)
-        return "\n".join(
-            [
-                space_lead
-                + f"{self._format_cx_order_amount(order):>{self.order_amount_field_width}}"  # noqa: E501
-                + " @ "
-                + f"{order.price:.2f} {currency}".rjust(self.order_price_field_width)
-                for order in reversed(data[:order_no])
-            ]
+        return self._format_cx_order_list(
+            data,
+            currency,
+            order_no,
+            order_amount_field_width,
+            order_price_field_width,
+            reverse=True,
         )
 
     def format_building(self, data: BuildingDTO) -> str:
+        workforce_lines = [
+            (label, value)
+            for label, value in [
+                ("先驱者", data.pioneers),
+                ("定居者", data.settlers),
+                ("职技工", data.technicians),
+                ("工程师", data.engineers),
+                ("科学家", data.scientists),
+            ]
+            if value
+        ]
         lines = [
             f"代码：{data.ticker}",
             f"名称：{data.name}",
             f"专精：{data.expertise or '无'}",
-            f"先驱者：{data.pioneers}" if data.pioneers else None,
-            f"定居者：{data.settlers}" if data.settlers else None,
-            f"职技工：{data.technicians}" if data.technicians else None,
-            f"工程师：{data.engineers}" if data.engineers else None,
-            f"科学家：{data.scientists}" if data.scientists else None,
+            *[f"{label}：{value}" for label, value in workforce_lines],
             f"占地面积：{data.area}",
             "建造材料：" if data.cost else None,
             self.format_cost_material_list(data.cost) if data.cost else None,
@@ -132,15 +175,14 @@ class Formatter:
         return "\n".join(lines)
 
     def format_cx_material(self, data: CXMaterialDTO, order_no: int) -> str:
-        self.order_amount_field_width = max(
+        order_amount_field_width = max(
             len(self._format_cx_order_amount(order))
             for order in data.sell_orders + data.buy_orders
         )
-        self.order_price_field_width = max(
+        order_price_field_width = max(
             len(f"{order.price:.2f} {data.currency}")
             for order in data.sell_orders + data.buy_orders
         )
-        # Decide the time direction based on the sign of total_seconds
         update_td = data.time_since_update
         update_dir = "前" if update_td.total_seconds() >= 0 else "后"
 
@@ -161,14 +203,26 @@ class Formatter:
             else None,
             f"交易量：{data.traded} (24H)",
             f"卖单前{order_no}：" if data.sell_orders else None,
-            self.format_cx_sell_order_list(data.sell_orders, data.currency, order_no)
+            self.format_cx_sell_order_list(
+                data.sell_orders,
+                data.currency,
+                order_no,
+                order_amount_field_width,
+                order_price_field_width,
+            )
             if data.sell_orders
             else None,
             f"价差：{data.ask_price - data.bid_price:.2f} {data.currency}"
             if data.ask_price and data.bid_price
             else None,
             f"买单前{order_no}：" if data.buy_orders else None,
-            self.format_cx_buy_order_list(data.buy_orders, data.currency, order_no)
+            self.format_cx_buy_order_list(
+                data.buy_orders,
+                data.currency,
+                order_no,
+                order_amount_field_width,
+                order_price_field_width,
+            )
             if data.buy_orders
             else None,
             f"更新时间：{self.format_timedelta(update_td)}{update_dir}",
@@ -233,6 +287,76 @@ class Formatter:
         if result.warnings:
             formatted_contents += self.format_warnings(result.warnings)
         return formatted_contents
+
+    def format_planet_projects_list(self, data: PlanetDTO) -> str:
+        item_lead = self.config.list_item_lead
+        lines = [
+            (item_lead + "行星监管中心") if data.has_adm else None,
+            (item_lead + "全球商会") if data.has_cogc else None,
+            (item_lead + "本地市场") if data.has_localmarket else None,
+            (item_lead + "仓库") if data.has_warehouse else None,
+        ]
+        return "\n".join(filter(None, lines))
+
+    def format_planet_resources_list(self, data: PlanetDTO) -> str:
+        item_lead = self.config.list_item_lead
+        lines = [
+            (
+                item_lead
+                + f"{r.ticker} ({PLANET_RESOURCE_TYPE_LABELS.get(r.type, r.type)})"
+                + f" - {r.daily_extraction:.2f}/天"
+            )
+            for r in data.resources
+        ]
+        return "\n".join(filter(None, lines))
+
+    def format_cogc_program(self, program: CoGCProgramDTO) -> str:
+        item_lead = self.config.list_item_lead
+        program_name = program.type or "未知项目"
+        if program.time_until_start.total_seconds() > 0:
+            schedule_label = "开始"
+            schedule_value = self.format_timedelta(program.time_until_start)
+            schedule = f"{schedule_label}：{schedule_value}后"
+        else:
+            schedule_label = "剩余"
+            schedule_value = self.format_timedelta(program.time_until_end)
+            schedule = f"{schedule_label}：{schedule_value}"
+        return item_lead + f"{program_name} ({schedule})"
+
+    def format_planet(self, data: PlanetDTO) -> str:
+        resources_block = (
+            "\n" + self.format_planet_resources_list(data) if data.resources else "无"
+        )
+        projects_block = (
+            "\n" + self.format_planet_projects_list(data)
+            if any(
+                [
+                    data.has_adm,
+                    data.has_cogc,
+                    data.has_localmarket,
+                    data.has_warehouse,
+                ]
+            )
+            else "无"
+        )
+        lines = [
+            f"编号：{data.natural_id}",
+            "名称：" + (data.name if data.name else "无"),
+            f"恒星系：{data.system_display_name}",
+            "派系：" + (data.faction if data.faction else "无"),
+            f"类型：{data.type_display}",
+            f"肥沃度：{data.fertility_percent:.2f}%",
+            f"重力：{data.gravity_display}",
+            f"温度：{data.temperature_display}",
+            f"压强：{data.pressure_display}",
+            "资源：" + resources_block,
+            "行星项目：" + projects_block,
+            f"CoGC状态：{data.cogc_status}" if data.cogc_status else None,
+            "CoGC项目：\n" + self.format_cogc_program(data.cogc_program)
+            if data.cogc_program
+            else None,
+        ]
+        return "\n".join(filter(None, lines))
 
     def format_warnings(self, warnings: list[Exception]) -> str:
         if not warnings:

@@ -15,7 +15,7 @@ from nonebot_plugin_fiqo.utils import (
     execute_batch,
     global_formatter,
 )
-from nonebot_plugin_fiqo.services import fio_service
+from nonebot_plugin_fiqo.services import info_service
 
 from .extensions import OB11GroupFwdExtension
 from .permissions import NORMALUSER
@@ -45,7 +45,7 @@ fiqo_exchange = on_alconna(
 @fiqo_exchange.handle()
 async def _(ticker: Match[tuple[str, ...]], orders: Match[int]) -> None:
     ticker_list = [t.strip().upper() for t in ticker.result]
-    worker = partial(fio_service.get_exchange_material_info, order_no=orders.result)
+    worker = partial(info_service.get_exchange_material_info, order_no=orders.result)
     result = await execute_batch(ticker_list, worker)
     response = global_formatter.format_service_result(result, "交易所物品信息：\n")
     await fiqo_exchange.finish(response)

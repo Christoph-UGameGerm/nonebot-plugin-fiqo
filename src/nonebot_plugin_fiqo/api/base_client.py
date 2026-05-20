@@ -61,6 +61,8 @@ class BaseClient:
                 raise not_found_error
 
             return TypeAdapter(model).validate_python(data)
+        except httpx.HTTPStatusError as e:
+            raise BadConnectionError(str(e)) from e
         except httpx.RequestError as e:
             raise BadConnectionError(str(e)) from e
 
@@ -96,8 +98,8 @@ class BaseClient:
                         endpoint, model, not_found_error, params=params
                     )
                 )
-            self._inflight[unified_key] = task
-            is_leader = True
+                self._inflight[unified_key] = task
+                is_leader = True
         try:
             result = await task
             if is_leader and (ttl is not None):

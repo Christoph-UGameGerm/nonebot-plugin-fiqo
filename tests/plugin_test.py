@@ -1,6 +1,63 @@
+import asyncio
+from datetime import datetime, timezone
+
 import pytest
 from fake import fake_group_message_event_v11
 from nonebug import App
+
+
+@pytest.mark.asyncio
+async def test_base_client_reuses_inflight_request(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import base_client as base_client_module
+    from nonebot_plugin_fiqo.exceptions import ResourceNotFoundError
+    from nonebot_plugin_fiqo.api.base_client import BaseClient
+
+    class DummyNotFoundError(ResourceNotFoundError):
+        def __init__(self) -> None:
+            super().__init__("dummy", "dummy")
+
+    client = BaseClient("https://example.com", timeout=10)
+    perform_calls = 0
+    cache_set_calls = 0
+
+    async def mock_cache_get(key: str, model: object) -> None:
+        return None
+
+    async def mock_cache_set(key: str, value: int, ttl: int) -> None:
+        nonlocal cache_set_calls
+        cache_set_calls += 1
+
+    async def mock_perform_request(
+        endpoint: str,
+        model: object,
+        not_found_error: ResourceNotFoundError,
+        params: dict | None = None,
+    ) -> int:
+        nonlocal perform_calls
+        perform_calls += 1
+        await asyncio.sleep(0)
+        return 1
+
+    monkeypatch.setattr(base_client_module.disk_cache, "get", mock_cache_get)
+    monkeypatch.setattr(base_client_module.disk_cache, "set", mock_cache_set)
+    monkeypatch.setattr(client, "_perform_request", mock_perform_request)
+
+    results = await asyncio.gather(
+        client.request(
+            ("dummy:key", int), "/dummy", None, DummyNotFoundError(), ttl=60
+        ),
+        client.request(
+            ("dummy:key", int), "/dummy", None, DummyNotFoundError(), ttl=60
+        ),
+    )
+
+    await client.close()
+
+    assert results == [1, 1]
+    assert perform_calls == 1
+    assert cache_set_calls == 1
 
 
 @pytest.mark.asyncio
@@ -47,14 +104,13 @@ async def test_mat(app: App, monkeypatch: pytest.MonkeyPatch):
     async def mock_get_material_info(ticker: str) -> str:
         return f"材料 {ticker}：Test Material\n描述：This is a test material."
 
-    from nonebot_plugin_fiqo.services.fio_service import FIOService
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
-    monkeypatch.setattr(FIOService, "get_material_info", mock_get_material_info)
+    monkeypatch.setattr(GameInfoService, "get_material_info", mock_get_material_info)
 
     async with app.test_matcher(fiqo_material) as ctx:
         adapter = nonebot.get_adapter(OnebotV11Adapter)
         bot = ctx.create_bot(base=Bot, adapter=adapter)
-        ctx.receive_event(bot, event)
 
         # Mock concurrent permission checks (3 conditions in NORMALUSER)
         for _ in range(3):
@@ -72,4 +128,523 @@ async def test_mat(app: App, monkeypatch: pytest.MonkeyPatch):
             result=None,
             bot=bot,
         )
+        ctx.receive_event(bot, event)
         ctx.should_finished()
+
+
+def make_planner_planet(**overrides):
+    from nonebot_plugin_fiqo.models import PlannerPlanetDTO
+
+    data = {
+        "natural_id": "VH-331a",
+        "name": "Katoa",
+        "system_id": "f2f57766ebaca9d69efae41ccf4d8853",
+        "faction": "IC1",
+        "has_rock_surface": True,
+        "fertility": 0.5,
+        "gravity": 1.02,
+        "temperature": 24.0,
+        "pressure": 1.03,
+        "has_adm": True,
+        "has_cogc": False,
+        "has_localmarket": True,
+        "has_warehouse": True,
+        "has_shipyard": False,
+        "cogc_status": None,
+        "active_cogc_program_type": None,
+        "resources": [],
+        "cogc_programs": [],
+    }
+    data.update(overrides)
+    return PlannerPlanetDTO(**data)
+
+
+def install_mock_system_info(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    natural_id: str = "VH-331",
+    name: str = "Vallis Hydri",
+    system_id: str = "f2f57766ebaca9d69efae41ccf4d8853",
+):
+    from nonebot_plugin_fiqo.api import fio_client
+    from nonebot_plugin_fiqo.models import SystemDTO
+
+    async def mock_get_system_info(system_id_or_name: str):
+        assert system_id_or_name == system_id
+        return SystemDTO(
+            natural_id=natural_id,
+            name=name,
+            meteoroid_density=0.0,
+        )
+
+    monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_uses_planner_data(monkeypatch: pytest.MonkeyPatch):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import PlanetResourceDTO
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                resources=[
+                    PlanetResourceDTO(
+                        type="LIQUID",
+                        factor=0.8,
+                        ticker="H2O",
+                        daily_extraction=123.45,
+                        max_extraction_in_world=999.0,
+                    )
+                ]
+            )
+        ]
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.natural_id == "VH-331a"
+    assert dto.name == "Katoa"
+    assert dto.system_display_name == "Vallis Hydri (VH-331)"
+    assert dto.resources
+    assert dto.resources[0].ticker == "H2O"
+    assert dto.fertility_percent == pytest.approx(115.15)
+
+
+def test_planet_dto_fertility_percent_handles_non_fertile_planet():
+    from nonebot_plugin_fiqo.models import PlanetDTO
+
+    dto = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        faction="IC1",
+        has_rock_surface=True,
+        fertility=-1,
+        gravity=1.02,
+        temperature=24.0,
+        pressure=1.03,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+        cogc_status=None,
+    )
+
+    assert dto.fertility_percent == 0
+
+
+def test_planet_dto_environment_display_strings():
+    from nonebot_plugin_fiqo.models import PlanetDTO
+
+    low = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=True,
+        fertility=0.5,
+        gravity=0.18,
+        temperature=-42.3,
+        pressure=0.12,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+    )
+    suitable = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=False,
+        fertility=0.5,
+        gravity=1.02,
+        temperature=16.25,
+        pressure=1.01,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+    )
+    high = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=True,
+        fertility=0.5,
+        gravity=2.83,
+        temperature=96.4,
+        pressure=2.31,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+    )
+
+    assert low.type_display == "岩质（MCG x4/面积）"
+    assert low.gravity_display == "0.18（低重力，MGC x1/建筑）"
+    assert low.temperature_display == "-42.30（低温，INS x10/面积）"
+    assert low.pressure_display == "0.12（低压，SEA x1/面积）"
+
+    assert suitable.type_display == "气态（AEF x面积/3）"
+    assert suitable.gravity_display == "1.02（适宜）"
+    assert suitable.temperature_display == "16.25（适宜）"
+    assert suitable.pressure_display == "1.01（适宜）"
+
+    assert high.gravity_display == "2.83（高重力，BL x1/建筑）"
+    assert high.temperature_display == "96.40（高温，TSH x1/建筑）"
+    assert high.pressure_display == "2.31（高压，HSE x1/建筑）"
+
+
+def test_formatter_planet_resources_list_uses_type_mapping():
+    from nonebot_plugin_fiqo.models import PlanetDTO, PlanetResourceDTO
+    from nonebot_plugin_fiqo.utils.formatters import global_formatter
+
+    dto = PlanetDTO(
+        natural_id="VH-331a",
+        name="Katoa",
+        system_id="f2f57766ebaca9d69efae41ccf4d8853",
+        has_rock_surface=True,
+        fertility=0.5,
+        gravity=1.02,
+        temperature=24.0,
+        pressure=1.03,
+        has_adm=True,
+        has_cogc=False,
+        has_localmarket=True,
+        has_warehouse=True,
+        has_shipyard=False,
+        resources=[
+            PlanetResourceDTO(
+                type="GASEOUS",
+                factor=0.25,
+                ticker="O",
+                daily_extraction=15.0,
+                max_extraction_in_world=43.26,
+            ),
+            PlanetResourceDTO(
+                type="MINERAL",
+                factor=0.05,
+                ticker="HAL",
+                daily_extraction=3.5,
+                max_extraction_in_world=20.47,
+            ),
+        ],
+    )
+
+    result = global_formatter.format_planet_resources_list(dto)
+
+    assert "O (气态) - 15.00/天" in result
+    assert "HAL (固态) - 3.50/天" in result
+
+
+def test_formatter_cx_material_keeps_order_book_formatting():
+    from nonebot_plugin_fiqo.models import CXOrder, CXMaterialDTO
+    from nonebot_plugin_fiqo.utils.formatters import global_formatter
+
+    dto = CXMaterialDTO(
+        ticker="RAT",
+        exchange="NC1",
+        currency="ICA",
+        price=100.0,
+        ask_price=101.0,
+        ask_size=10,
+        bid_price=99.0,
+        bid_size=8,
+        traded=200,
+        supply=300,
+        demand=250,
+        MM_buy=None,
+        MM_sell=None,
+        timestamp=datetime.now(timezone.utc),
+        buy_orders=[
+            CXOrder(company_code="DRML", price=99.0, amount=8),
+            CXOrder.model_validate(
+                {"company_code": "CIMM", "price": 98.5, "amount": None}
+            ),
+        ],
+        sell_orders=[
+            CXOrder(company_code="RX7", price=101.0, amount=10),
+            CXOrder(company_code="RNHT", price=102.5, amount=2),
+        ],
+    )
+
+    result = global_formatter.format_cx_material(dto, 2)
+
+    assert "卖单前2：" in result
+    assert "买单前2：" in result
+    assert "∞ @  98.50 ICA [CIMM]" in result
+    assert "8 @  99.00 ICA [DRML]" in result
+    assert "10 @ 101.00 ICA [RX7]" in result
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_raises_not_found_on_empty_planner_result(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.exceptions import PlanetNotFoundError
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return []
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+
+    with pytest.raises(PlanetNotFoundError):
+        await GameInfoService.get_planet_dto("Katoa")
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_rejects_single_non_exact_planner_result(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.exceptions import PlanetNotFoundError
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                natural_id="VH-331b",
+                name="Katoa Prime",
+            )
+        ]
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+
+    with pytest.raises(PlanetNotFoundError):
+        await GameInfoService.get_planet_dto("Katoa")
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_merge_with_none_cogc_program_type(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type=None,
+                        start_epoch_ms=0,
+                        end_epoch_ms=4102444800000,
+                    )
+                ],
+            )
+        ]
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type is None
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_prefers_active_cogc_program_type(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="OLDER",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="OLDER",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                    CoGCProgramDTO(
+                        type="NEWER",
+                        start_epoch_ms=1750000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                ],
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        return program_name
+
+    async def mock_get_cogc_i18n_status(status: str) -> str:
+        assert status == "ACTIVE"
+        return "已生效"
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+    monkeypatch.setattr(i18n_service, "get_cogc_i18n_status", mock_get_cogc_i18n_status)
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_status == "已生效"
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type == "OLDER"
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_prefers_active_cogc_program_type_outside_local_window(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="ACTIVE_FROM_PLANNER",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="ACTIVE_FROM_PLANNER",
+                        start_epoch_ms=0,
+                        end_epoch_ms=1,
+                    ),
+                    CoGCProgramDTO(
+                        type="LOCAL_ACTIVE",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                ],
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        return program_name
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type == "ACTIVE_FROM_PLANNER"
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_keeps_latest_active_cogc_program(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="MISSING",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="OLDER",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                    CoGCProgramDTO(
+                        type="NEWER",
+                        start_epoch_ms=1750000000000,
+                        end_epoch_ms=4102444800000,
+                    ),
+                ],
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        return program_name
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type == "NEWER"
+
+
+@pytest.mark.asyncio
+async def test_planet_dto_keeps_original_cogc_program_name_on_i18n_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import planner_client
+    from nonebot_plugin_fiqo.models import CoGCProgramDTO
+    from nonebot_plugin_fiqo.exceptions import I18nFetchError
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "Katoa"
+        return [
+            make_planner_planet(
+                has_cogc=True,
+                cogc_status="ACTIVE",
+                active_cogc_program_type="ORIGINAL",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="ORIGINAL",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    )
+                ],
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        raise I18nFetchError(program_name)
+
+    async def mock_get_cogc_i18n_status(status: str) -> str:
+        raise I18nFetchError(status)
+
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+    monkeypatch.setattr(i18n_service, "get_cogc_i18n_status", mock_get_cogc_i18n_status)
+    install_mock_system_info(monkeypatch)
+
+    dto = await GameInfoService.get_planet_dto("Katoa")
+
+    assert dto.cogc_status == "ACTIVE"
+    assert dto.cogc_program is not None
+    assert dto.cogc_program.type == "ORIGINAL"

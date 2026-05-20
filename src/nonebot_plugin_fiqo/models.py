@@ -94,6 +94,7 @@ class BuildingDTO(FIQOBaseDTO):
 
 
 class CXOrder(FIQOBaseDTO):
+    company_code: str = Field(validation_alias="CompanyCode")
     price: float = Field(validation_alias="ItemCost")
     amount: float = Field(validation_alias="ItemCount")
 
@@ -221,6 +222,188 @@ class UserAndCompanyDTO(FIQOBaseDTO):
             key=lambda o: o.natural_id,
         )
         return self
+
+
+class PlanetResourceDTO(FIQOBaseDTO):
+    type: str = Field(validation_alias="resource_type")
+    factor: float
+    ticker: str = Field(validation_alias="material_ticker")
+    daily_extraction: float
+    max_extraction_in_world: float = Field(validation_alias="max_daily_extraction")
+
+
+class CoGCProgramDTO(FIQOBaseDTO):
+    type: str | None = Field(default=None, validation_alias="program_type")
+    start_epoch_ms: int = Field(validation_alias="start_epochms")
+    end_epoch_ms: int = Field(validation_alias="end_epochms")
+
+    @computed_field
+    @property
+    def time_until_start(self) -> timedelta:
+        return timedelta(milliseconds=self.start_epoch_ms - time.time() * 1000)
+
+    @computed_field
+    @property
+    def time_until_end(self) -> timedelta:
+        return timedelta(milliseconds=self.end_epoch_ms - time.time() * 1000)
+
+
+class PlannerPlanetDTO(FIQOBaseDTO):
+    natural_id: str = Field(validation_alias="planet_natural_id")
+    name: str | None = Field(default=None, validation_alias="planet_name")
+    system_id: str
+    faction: str | None = Field(default=None, validation_alias="faction_code")
+    has_rock_surface: bool = Field(validation_alias="surface")
+    fertility: float
+    gravity: float
+    temperature: float
+    pressure: float
+    has_adm: bool = Field(validation_alias="has_administrationcenter")
+    has_cogc: bool = Field(validation_alias="has_chamberofcommerce")
+    has_localmarket: bool
+    has_warehouse: bool
+    has_shipyard: bool
+    cogc_status: str | None = Field(
+        default=None, validation_alias="cogc_program_status"
+    )
+    active_cogc_program_type: str | None = None
+    resources: list[PlanetResourceDTO] = Field(default_factory=list)
+    cogc_programs: list[CoGCProgramDTO] = Field(default_factory=list)
+    cogc_program: CoGCProgramDTO | None = None
+
+    @model_validator(mode="after")
+    def select_current_cogc_program(self) -> "PlannerPlanetDTO":
+        if self.active_cogc_program_type:
+            self.cogc_program = next(
+                (
+                    p
+                    for p in self.cogc_programs
+                    if p.type == self.active_cogc_program_type
+                ),
+                None,
+            )
+            if self.cogc_program is not None:
+                return self
+
+        current_ms = time.time() * 1000
+        active_programs = [
+            p
+            for p in self.cogc_programs
+            if p.start_epoch_ms <= current_ms < p.end_epoch_ms
+        ]
+
+        if self.cogc_program is None and active_programs:
+            self.cogc_program = max(active_programs, key=lambda p: p.start_epoch_ms)
+        return self
+
+
+class PlanetDTO(FIQOBaseDTO):
+    natural_id: str
+    name: str | None = None
+    system_id: str
+    system_name: str | None = None
+    system_natural_id: str | None = None
+    faction: str | None = None
+    has_rock_surface: bool
+    fertility: float
+    gravity: float
+    temperature: float
+    pressure: float
+    has_adm: bool
+    has_cogc: bool
+    has_localmarket: bool
+    has_warehouse: bool
+    has_shipyard: bool
+    cogc_status: str | None = None
+    resources: list[PlanetResourceDTO] = Field(default_factory=list)
+    cogc_program: CoGCProgramDTO | None = None
+
+    @computed_field
+    @property
+    def fertility_percent(self) -> float:
+        if self.fertility == -1:
+            return 0.0
+        return 100 + 30.3 * self.fertility
+
+    @computed_field
+    @property
+    def system_display_name(self) -> str:
+        if (
+            self.system_name
+            and self.system_natural_id
+            and self.system_name != self.system_natural_id
+        ):
+            return f"{self.system_name} ({self.system_natural_id})"
+        if self.system_name:
+            return self.system_name
+        if self.system_natural_id:
+            return self.system_natural_id
+        return self.system_id
+
+    @computed_field
+    @property
+    def type_display(self) -> str:
+        if self.has_rock_surface:
+            return "岩质（MCG x4/面积）"
+        return "气态（AEF x面积/3）"
+
+    @computed_field
+    @property
+    def gravity_display(self) -> str:
+        if self.gravity < 0.25:
+            return f"{self.gravity:.2f}（低重力，MGC x1/建筑）"
+        if self.gravity > 2.5:
+            return f"{self.gravity:.2f}（高重力，BL x1/建筑）"
+        return f"{self.gravity:.2f}（适宜）"
+
+    @computed_field
+    @property
+    def temperature_display(self) -> str:
+        if self.temperature < -25:
+            return f"{self.temperature:.2f}（低温，INS x10/面积）"
+        if self.temperature > 75:
+            return f"{self.temperature:.2f}（高温，TSH x1/建筑）"
+        return f"{self.temperature:.2f}（适宜）"
+
+    @computed_field
+    @property
+    def pressure_display(self) -> str:
+        if self.pressure < 0.25:
+            return f"{self.pressure:.2f}（低压，SEA x1/面积）"
+        if self.pressure > 2.0:
+            return f"{self.pressure:.2f}（高压，HSE x1/建筑）"
+        return f"{self.pressure:.2f}（适宜）"
+
+    @classmethod
+    def from_planner(
+        cls,
+        planner: PlannerPlanetDTO,
+    ) -> "PlanetDTO":
+        return cls(
+            natural_id=planner.natural_id,
+            name=planner.name,
+            system_id=planner.system_id,
+            faction=planner.faction,
+            has_rock_surface=planner.has_rock_surface,
+            fertility=planner.fertility,
+            gravity=planner.gravity,
+            temperature=planner.temperature,
+            pressure=planner.pressure,
+            has_adm=planner.has_adm,
+            has_cogc=planner.has_cogc,
+            has_localmarket=planner.has_localmarket,
+            has_warehouse=planner.has_warehouse,
+            has_shipyard=planner.has_shipyard,
+            cogc_status=planner.cogc_status,
+            resources=planner.resources,
+            cogc_program=planner.cogc_program,
+        )
+
+
+class SystemDTO(FIQOBaseDTO):
+    natural_id: str = Field(validation_alias="SystemNaturalId")
+    name: str = Field(validation_alias="SystemName")
+    meteoroid_density: float = Field(validation_alias="MeteoroidDensity")
 
 
 class I18nDictDTO(BaseModel):

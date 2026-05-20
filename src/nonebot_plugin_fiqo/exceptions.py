@@ -61,6 +61,16 @@ class CategoryNotFoundError(ResourceNotFoundError):
         super().__init__("FIO物品类别", category)
 
 
+class PlanetNotFoundError(ResourceNotFoundError):
+    def __init__(self, name_or_id: str) -> None:
+        super().__init__("行星名称或ID", name_or_id)
+
+
+class WrongSystemTickerError(ResourceNotFoundError):
+    def __init__(self, ticker: str) -> None:
+        super().__init__("恒星系名称或ID", ticker)
+
+
 # =============================================
 # Network and Communication Errors
 # =============================================

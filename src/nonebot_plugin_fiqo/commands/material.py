@@ -14,7 +14,7 @@ from nonebot_plugin_fiqo.utils import (
     execute_batch,
     global_formatter,
 )
-from nonebot_plugin_fiqo.services import fio_service
+from nonebot_plugin_fiqo.services import info_service
 
 from .extensions import OB11GroupFwdExtension
 from .permissions import NORMALUSER
@@ -44,9 +44,9 @@ async def _(
     ticker_list = [t.strip().upper() for t in ticker.result]
     if recipes.available and recipes.result:
         result = await execute_batch(
-            ticker_list, fio_service.get_material_info_with_recipes
+            ticker_list, info_service.get_material_info_with_recipes
         )
     else:
-        result = await execute_batch(ticker_list, fio_service.get_material_info)
+        result = await execute_batch(ticker_list, info_service.get_material_info)
     response = global_formatter.format_service_result(result, "材料信息：\n")
     await fiqo_material.finish(response)
