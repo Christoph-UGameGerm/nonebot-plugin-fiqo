@@ -23,8 +23,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd ~/FIQO
-            docker compose exec nonebot pip install --no-cache-dir --force-reinstall "nonebot-plugin-fiqo @ git+https://ghfast.top/https://github.com/Christoph-UGameGerm/nonebot-plugin-fiqo.git@${{ github.sha }}"
+            docker compose exec nonebot sh -lc '
+              pip cache remove nonebot-plugin-fiqo || true
+              pip install --force-reinstall "nonebot-plugin-fiqo @ git+https://ghfast.top/https://github.com/Christoph-UGameGerm/nonebot-plugin-fiqo.git@${{ github.sha }}"
+            '
             docker compose restart nonebot
       - name: Notify via Bark
         run: |
