@@ -27,7 +27,7 @@ jobs:
             cd ~/FIQO
             docker compose exec nonebot sh -lc '
               pip cache remove nonebot-plugin-fiqo || true
-              pip install --force-reinstall "nonebot-plugin-fiqo @ git+https://ghfast.top/https://github.com/Christoph-UGameGerm/nonebot-plugin-fiqo.git@${{ github.sha }}"
+              pip install --upgrade --upgrade-strategy only-if-needed "nonebot-plugin-fiqo @ git+https://ghfast.top/https://github.com/Christoph-UGameGerm/nonebot-plugin-fiqo.git@${{ github.sha }}"
             '
             docker compose restart nonebot
       - name: Notify via Bark
