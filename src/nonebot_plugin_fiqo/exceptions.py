@@ -71,6 +71,11 @@ class WrongSystemTickerError(ResourceNotFoundError):
         super().__init__("恒星系名称或ID", ticker)
 
 
+class WrongCargoPresetError(ResourceNotFoundError):
+    def __init__(self, preset: str) -> None:
+        super().__init__("运力预设", preset)
+
+
 # =============================================
 # Network and Communication Errors
 # =============================================

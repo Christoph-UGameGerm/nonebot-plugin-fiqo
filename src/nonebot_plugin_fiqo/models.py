@@ -38,6 +38,44 @@ class MaterialDTO(FIQOBaseDTO):
         return v
 
 
+class FitResultDTO(FIQOBaseDTO):
+    ticker: str
+    material_name: str
+    max_units: int
+    remaining_weight: float
+    remaining_volume: float
+    limiting_factor: str
+    unit_weight: float
+    unit_volume: float
+    preset_key: str | None = None
+    preset_name: str | None = None
+    preset_weight: float | None = None
+    preset_volume: float | None = None
+
+
+class FitRatioItemDTO(FIQOBaseDTO):
+    ticker: str
+    amount: int
+    unit_weight: float
+    unit_volume: float
+    total_weight: float
+    total_volume: float
+
+
+class FitRatioResultDTO(FIQOBaseDTO):
+    max_groups: int
+    remaining_weight: float
+    remaining_volume: float
+    limiting_factor: str
+    group_weight: float
+    group_volume: float
+    items: list[FitRatioItemDTO]
+    preset_key: str | None = None
+    preset_name: str | None = None
+    preset_weight: float | None = None
+    preset_volume: float | None = None
+
+
 class CostMaterialDTO(FIQOBaseDTO):
     ticker: str = Field(validation_alias="CommodityTicker")
     amount: int = Field(validation_alias="Amount")

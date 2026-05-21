@@ -12,6 +12,12 @@ class FormatConfig(BaseModel):
     list_item_lead: str = " - "
 
 
+class CargoPresetConfig(BaseModel):
+    weight: float
+    volume: float
+    display_name: str | None = None
+
+
 class Users(BaseModel):
     admin: list[str] = Field(default_factory=list)
     superusers: list[str] = Field(default_factory=list)
@@ -31,6 +37,50 @@ class GameInfoConfig(BaseModel):
             "NC": "NC",
             "INS": "IC",
             "NEO": "NC",
+        }
+    )
+    cargo_presets: dict[str, CargoPresetConfig] = Field(
+        default_factory=lambda: {
+            "TCB": CargoPresetConfig(
+                weight=100,
+                volume=100,
+                display_name="微型货舱套装",
+            ),
+            "VSC": CargoPresetConfig(
+                weight=250,
+                volume=250,
+                display_name="超小货舱套装",
+            ),
+            "SCB": CargoPresetConfig(
+                weight=500,
+                volume=500,
+                display_name="小型货舱套装",
+            ),
+            "MCB": CargoPresetConfig(
+                weight=1000,
+                volume=1000,
+                display_name="中型货舱套装",
+            ),
+            "LCB": CargoPresetConfig(
+                weight=2000,
+                volume=2000,
+                display_name="大型货舱套装",
+            ),
+            "HCB": CargoPresetConfig(
+                weight=5000,
+                volume=5000,
+                display_name="巨型货舱套装",
+            ),
+            "VCB": CargoPresetConfig(
+                weight=1000,
+                volume=3000,
+                display_name="高容积货舱套装",
+            ),
+            "WCB": CargoPresetConfig(
+                weight=3000,
+                volume=1000,
+                display_name="高负荷货舱套装",
+            ),
         }
     )
 

@@ -132,6 +132,127 @@ async def test_mat(app: App, monkeypatch: pytest.MonkeyPatch):
         ctx.should_finished()
 
 
+@pytest.mark.asyncio
+async def test_fit(app: App, monkeypatch: pytest.MonkeyPatch):
+    import nonebot
+    from nonebot.adapters.onebot.v11 import Bot, Message
+    from nonebot.adapters.onebot.v11 import Adapter as OnebotV11Adapter
+
+    event = fake_group_message_event_v11(message="fit AEF 3000t 1000m")
+    try:
+        from nonebot_plugin_fiqo.commands.fit import fiqo_fit
+    except ImportError as e:
+        pytest.fail(f"Module fit not found: {e}")
+
+    @staticmethod
+    async def mock_get_fit_result(
+        ticker: str | None,
+        capacity_1: str | None = None,
+        capacity_2: str | None = None,
+        ship_preset: str | None = None,
+    ):
+        from nonebot_plugin_fiqo.models import ServiceResult
+
+        assert ticker == "AEF"
+        assert capacity_1 == "3000t"
+        assert capacity_2 == "1000m"
+        assert ship_preset is None
+        return ServiceResult(contents=["200 AEF\n剩余重量 2000.00t"])
+
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    monkeypatch.setattr(FitService, "get_fit_result", mock_get_fit_result)
+
+    async with app.test_matcher(fiqo_fit) as ctx:
+        adapter = nonebot.get_adapter(OnebotV11Adapter)
+        bot = ctx.create_bot(base=Bot, adapter=adapter)
+
+        for _ in range(3):
+            ctx.should_call_api(
+                "get_group_member_info",
+                {"group_id": 87654321, "user_id": 12345678},
+                {"role": "admin", "title": "", "level": "1"},
+            )
+
+        ctx.should_call_send(
+            event,
+            Message("装载计算：\n200 AEF\n剩余重量 2000.00t"),
+            result=None,
+            bot=bot,
+        )
+        ctx.receive_event(bot, event)
+        ctx.should_finished()
+
+
+def test_fit_service_resolves_explicit_capacity_inputs():
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    result = FitService.resolve_fit_inputs("1000m", "3000t", None)
+
+    assert result == (3000.0, 1000.0, None, None, None, None)
+
+
+def test_fit_service_resolves_default_preset():
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    result = FitService.resolve_fit_inputs("WCB", None, None)
+
+    assert result == (
+        3000,
+        1000,
+        "WCB",
+        "高负荷货舱套装",
+        3000,
+        1000,
+    )
+
+
+def test_fit_service_resolves_fitratio_compact_tokens():
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    result = FitService.resolve_fitratio_inputs(
+        ["2AEF", "3MCG", "HSE", "3000t", "1000m"],
+        None,
+    )
+
+    assert result == (
+        [("AEF", 2), ("MCG", 3), ("HSE", 1)],
+        3000.0,
+        1000.0,
+        None,
+        None,
+        None,
+        None,
+    )
+
+
+def test_fit_service_resolves_fitratio_split_tokens_and_merges_duplicates():
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    result = FitService.resolve_fitratio_inputs(
+        ["2", "AEF", "AEF", "3", "MCG", "WCB"],
+        None,
+    )
+
+    assert result == (
+        [("AEF", 3), ("MCG", 3)],
+        3000,
+        1000,
+        "WCB",
+        "高负荷货舱套装",
+        3000,
+        1000,
+    )
+
+
+def test_fit_service_rejects_fitratio_invalid_amount():
+    from nonebot_plugin_fiqo.exceptions import EvaluationError
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    with pytest.raises(EvaluationError, match="无效的材料数量"):
+        FitService.resolve_fitratio_inputs(["0AEF", "3000t", "1000m"], None)
+
+
 def make_planner_planet(**overrides):
     from nonebot_plugin_fiqo.models import PlannerPlanetDTO
 
@@ -383,6 +504,163 @@ def test_formatter_cx_material_keeps_order_book_formatting():
     assert "∞ @  98.50 ICA [CIMM]" in result
     assert "8 @  99.00 ICA [DRML]" in result
     assert "10 @ 101.00 ICA [RX7]" in result
+
+
+def test_fit_service_uses_explicit_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client
+    from nonebot_plugin_fiqo.models import MaterialDTO
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    async def mock_get_material_info(ticker: str):
+        assert ticker == "AEF"
+        return MaterialDTO(
+            ticker="AEF",
+            name="aerostatEstabilizedFoundation",
+            category="Construction Materials",
+            weight=5.0,
+            volume=5.0,
+        )
+
+    monkeypatch.setattr(fio_client, "get_material_info", mock_get_material_info)
+
+    result = asyncio.run(
+        FitService.get_fit_info(
+            ticker="AEF",
+            max_weight=3000,
+            max_volume=1000,
+        )
+    )
+
+    assert "最大装载量：200" in result
+    assert "剩余重量：2000.00 t/吨" in result
+    assert "剩余体积：0.00 m³/立方米" in result
+    assert "限制因素：体积受限" in result
+
+
+def test_fit_service_accepts_swapped_capacity_order(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client
+    from nonebot_plugin_fiqo.models import MaterialDTO
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    async def mock_get_material_info(ticker: str):
+        assert ticker == "AEF"
+        return MaterialDTO(
+            ticker="AEF",
+            name="aerostatEstabilizedFoundation",
+            category="Construction Materials",
+            weight=5.0,
+            volume=5.0,
+        )
+
+    monkeypatch.setattr(fio_client, "get_material_info", mock_get_material_info)
+
+    result = asyncio.run(
+        FitService.get_fit_info(
+            ticker="AEF",
+            max_weight=3000,
+            max_volume=1000,
+        )
+    )
+
+    assert "最大装载量：200" in result
+
+
+def test_fit_service_uses_configured_preset(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client
+    from nonebot_plugin_fiqo.models import MaterialDTO
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    async def mock_get_material_info(ticker: str):
+        assert ticker == "AEF"
+        return MaterialDTO(
+            ticker="AEF",
+            name="aerostatEstabilizedFoundation",
+            category="Construction Materials",
+            weight=5.0,
+            volume=5.0,
+        )
+
+    monkeypatch.setattr(fio_client, "get_material_info", mock_get_material_info)
+
+    result = asyncio.run(
+        FitService.get_fit_info(
+            ticker="AEF",
+            max_weight=3000,
+            max_volume=1000,
+            preset_key="WCB",
+            preset_name="高负荷货舱套装",
+            preset_weight=3000,
+            preset_volume=1000,
+        )
+    )
+
+    assert "最大装载量：200" in result
+    assert "运力预设：高负荷货舱套装 (WCB) 3000t/1000m³" in result
+
+
+def test_fit_service_calculates_fitratio(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client
+    from nonebot_plugin_fiqo.models import MaterialDTO
+    from nonebot_plugin_fiqo.services.fit_service import FitService
+
+    async def mock_get_material_info(ticker: str):
+        materials = {
+            "AEF": MaterialDTO(
+                ticker="AEF",
+                name="aerostatEstabilizedFoundation",
+                category="Construction Materials",
+                weight=5.0,
+                volume=5.0,
+            ),
+            "MCG": MaterialDTO(
+                ticker="MCG",
+                name="mineralConstructionGranulate",
+                category="Construction Materials",
+                weight=2.0,
+                volume=1.0,
+            ),
+            "HSE": MaterialDTO(
+                ticker="HSE",
+                name="hardenedStructuralElements",
+                category="Construction Materials",
+                weight=10.0,
+                volume=2.0,
+            ),
+        }
+        return materials[ticker]
+
+    monkeypatch.setattr(fio_client, "get_material_info", mock_get_material_info)
+
+    result = asyncio.run(
+        FitService.get_fitratio_info(
+            materials=[("AEF", 2), ("MCG", 3), ("HSE", 1)],
+            max_weight=100.0,
+            max_volume=20.0,
+            preset_key="WCB",
+            preset_name="高负荷货舱套装",
+            preset_weight=3000,
+            preset_volume=1000,
+        )
+    )
+
+    assert "最大装载组数：1" in result
+    assert "剩余重量：74.00 t/吨" in result
+    assert "剩余体积：5.00 m³/立方米" in result
+    assert "限制因素：体积受限" in result
+    assert "每组重量：26.000 t/吨" in result
+    assert "每组体积：15.000 m³/立方米" in result
+    assert " - 2 AEF" in result
+    assert " - 3 MCG" in result
+    assert " - 1 HSE" in result
+    assert "运力预设：高负荷货舱套装 (WCB) 3000t/1000m³" in result
 
 
 @pytest.mark.asyncio

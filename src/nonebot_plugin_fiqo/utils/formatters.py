@@ -19,12 +19,15 @@ from nonebot_plugin_fiqo.models import (
     RecipeDTO,
     BuildingDTO,
     MaterialDTO,
+    FitResultDTO,
     BasePlanetDTO,
     CXMaterialDTO,
     ServiceResult,
     CoGCProgramDTO,
     CostMaterialDTO,
+    FitRatioItemDTO,
     OfficePlanetDTO,
+    FitRatioResultDTO,
     UserAndCompanyDTO,
 )
 
@@ -173,6 +176,58 @@ class Formatter:
             f"描述：{data.desc or '无'}",
         ]
         return "\n".join(lines)
+
+    def format_fit_result(self, data: FitResultDTO) -> str:
+        lines = [
+            f"最大装载量：{data.max_units}",
+            f"剩余重量：{data.remaining_weight:.2f} t/吨",
+            f"剩余体积：{data.remaining_volume:.2f} m³/立方米",
+            f"限制因素：{data.limiting_factor}",
+            f"单件重量：{data.unit_weight:.3f} t/吨",
+            f"单件体积：{data.unit_volume:.3f} m³/立方米",
+        ]
+        if data.preset_key is not None:
+            preset_display = (
+                f"{data.preset_name} ({data.preset_key})"
+                if data.preset_name
+                else data.preset_key
+            )
+            preset_capacity = (
+                f"{data.preset_weight:.0f}t/{data.preset_volume:.0f}m³"
+                if data.preset_weight is not None and data.preset_volume is not None
+                else "未知"
+            )
+            lines.append(f"运力预设：{preset_display} {preset_capacity}")
+        return "\n".join(lines)
+
+    def format_fitratio_result(self, data: FitRatioResultDTO) -> str:
+        lines = [
+            f"最大装载组数：{data.max_groups}",
+            f"剩余重量：{data.remaining_weight:.2f} t/吨",
+            f"剩余体积：{data.remaining_volume:.2f} m³/立方米",
+            f"限制因素：{data.limiting_factor}",
+            f"每组重量：{data.group_weight:.3f} t/吨",
+            f"每组体积：{data.group_volume:.3f} m³/立方米",
+            "材料组合：",
+            self.format_fitratio_items(data.items),
+        ]
+        if data.preset_key is not None:
+            preset_display = (
+                f"{data.preset_name} ({data.preset_key})"
+                if data.preset_name
+                else data.preset_key
+            )
+            preset_capacity = (
+                f"{data.preset_weight:.0f}t/{data.preset_volume:.0f}m³"
+                if data.preset_weight is not None and data.preset_volume is not None
+                else "未知"
+            )
+            lines.append(f"运力预设：{preset_display} {preset_capacity}")
+        return "\n".join(lines)
+
+    def format_fitratio_items(self, data: list[FitRatioItemDTO]) -> str:
+        item_lead = self.config.list_item_lead
+        return "\n".join([item_lead + f"{item.amount} {item.ticker}" for item in data])
 
     def format_cx_material(self, data: CXMaterialDTO, order_no: int) -> str:
         order_amount_field_width = max(

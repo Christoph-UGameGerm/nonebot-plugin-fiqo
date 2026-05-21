@@ -97,6 +97,7 @@
 | FIQO__weblate__api_token | 否 | 无 | 查询物品或建筑的本地化字段时使用的官方Weblate平台API Token。未配置会导致部分查询字段无法获取 |
 | FIQO__game__all_ingame_cxs | 否 | ["AI1", "CI2", "CI1", "IC1", "NC2", "NC1"] | 允许查询的游戏内商品市场代码列表 |
 | FIQO__game__all_ingame_fas | 否 | {"AI": "AI", "CI": "CI", "IC": "IC", "NC": "NC", "INS": "IC", "NEO": "NC"} | 允许使用的派系自定义称呼，及其与游戏内派系代码的映射关系。用于群昵称格式验证 |
+| FIQO__game__cargo_presets | 否 | 内置 TCB/VSC/SCB/MCB/LCB/HCB/VCB/WCB 八种货舱预设 | `fit` 命令使用的运力预设字典。每个预设至少需要提供 `weight` 和 `volume`，可选提供 `display_name` 作为显示名称 |
 
 以下配置管理该插件命令的权限组，可用于控制群内命令滥用导致的刷屏。下表按照权限由高到低排序，高权限组用户自动拥有低权限组权限。使用OneBot V11时每个id的格式为`"onebot:{user_id}"`
 
