@@ -10,7 +10,7 @@ from nonebot_plugin_alconna import (
 from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 
 from nonebot_plugin_fiqo.utils import execute_tasks, global_formatter
-from nonebot_plugin_fiqo.services import info_service
+from nonebot_plugin_fiqo.services import info_service, uinfo_service
 
 from .permissions import NORMALUSER, get_group_member_info
 
@@ -37,11 +37,16 @@ async def _(event: Event, bot: Bot, param: Arparma) -> None:
         member_info = await get_group_member_info(
             bot, event.get_session_id(), member.target
         )
-        username = (
+        nickname = (
             member_info.get("card") or member_info.get("nickname")
             if member_info
             else None
         )
+        username = (
+            await uinfo_service.resolve_username_from_nickname(nickname)
+            if nickname
+            else None
+        ) or nickname
 
     if not username:
         await fiqo_usr.finish("请提供用户名或 @ 成员")

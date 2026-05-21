@@ -235,6 +235,77 @@ async def test_co(app: App, monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.mark.asyncio
+async def test_co_with_mention(app: App, monkeypatch: pytest.MonkeyPatch):
+    import nonebot
+    from nonebot.adapters.onebot.v11 import Bot, Message, MessageSegment
+    from nonebot.adapters.onebot.v11 import Adapter as OnebotV11Adapter
+
+    event = fake_group_message_event_v11(
+        message=Message("co ") + MessageSegment.at(87654321)
+    )
+    try:
+        from nonebot_plugin_fiqo.commands.co import fiqo_co
+    except ImportError as e:
+        pytest.fail(f"Module co not found: {e}")
+
+    @staticmethod
+    async def mock_resolve_company_code_from_nickname(nickname: str) -> str | None:
+        assert nickname == "IC | UTC | TestUser"
+        return "UTC"
+
+    @staticmethod
+    async def mock_get_user_and_company_info(
+        username: str | None = None,
+        company_code: str | None = None,
+        company_name: str | None = None,
+    ) -> str:
+        assert username is None
+        assert company_code == "UTC"
+        assert company_name is None
+        return "公司：Universal Trading Coalition\n代码：UTC"
+
+    from nonebot_plugin_fiqo.services.uinfo_service import UinfoService
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    monkeypatch.setattr(
+        UinfoService,
+        "resolve_company_code_from_nickname",
+        staticmethod(mock_resolve_company_code_from_nickname),
+    )
+    monkeypatch.setattr(
+        GameInfoService, "get_user_and_company_info", mock_get_user_and_company_info
+    )
+
+    async with app.test_matcher(fiqo_co) as ctx:
+        adapter = nonebot.get_adapter(OnebotV11Adapter)
+        bot = ctx.create_bot(base=Bot, adapter=adapter)
+
+        for _ in range(3):
+            ctx.should_call_api(
+                "get_group_member_info",
+                {"group_id": 87654321, "user_id": 12345678},
+                {"role": "admin", "title": "", "level": "1"},
+            )
+
+        ctx.should_call_api(
+            "get_group_member_info",
+            {"group_id": 87654321, "user_id": 87654321},
+            {"card": "IC | UTC | TestUser", "nickname": "FallbackUser"},
+        )
+
+        ctx.should_call_send(
+            event,
+            Message(
+                "用户与公司查询结果：\n公司：Universal Trading Coalition\n代码：UTC"
+            ),
+            result=None,
+            bot=bot,
+        )
+        ctx.receive_event(bot, event)
+        ctx.should_finished()
+
+
+@pytest.mark.asyncio
 async def test_usr_with_mention(app: App, monkeypatch: pytest.MonkeyPatch):
     import nonebot
     from nonebot.adapters.onebot.v11 import Bot, Message, MessageSegment
@@ -249,6 +320,11 @@ async def test_usr_with_mention(app: App, monkeypatch: pytest.MonkeyPatch):
         pytest.fail(f"Module usr not found: {e}")
 
     @staticmethod
+    async def mock_resolve_username_from_nickname(nickname: str) -> str | None:
+        assert nickname == "IC | UTC | TestUser"
+        return "TestUser"
+
+    @staticmethod
     async def mock_get_user_and_company_info(
         username: str | None = None,
         company_code: str | None = None,
@@ -259,8 +335,14 @@ async def test_usr_with_mention(app: App, monkeypatch: pytest.MonkeyPatch):
         assert company_name is None
         return "用户：TestUser\n公司：TEST"
 
+    from nonebot_plugin_fiqo.services.uinfo_service import UinfoService
     from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
 
+    monkeypatch.setattr(
+        UinfoService,
+        "resolve_username_from_nickname",
+        staticmethod(mock_resolve_username_from_nickname),
+    )
     monkeypatch.setattr(
         GameInfoService, "get_user_and_company_info", mock_get_user_and_company_info
     )
@@ -279,7 +361,7 @@ async def test_usr_with_mention(app: App, monkeypatch: pytest.MonkeyPatch):
         ctx.should_call_api(
             "get_group_member_info",
             {"group_id": 87654321, "user_id": 87654321},
-            {"card": "TestUser", "nickname": "FallbackUser"},
+            {"card": "IC | UTC | TestUser", "nickname": "FallbackUser"},
         )
 
         ctx.should_call_send(
@@ -359,6 +441,94 @@ def test_fit_service_rejects_fitratio_invalid_amount():
 
     with pytest.raises(EvaluationError, match="无效的材料数量"):
         FitService.resolve_fitratio_inputs(["0AEF", "3000t", "1000m"], None)
+
+
+def test_uinfo_service_resolves_company_code_from_nickname(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.models import UserAndCompanyDTO
+    from nonebot_plugin_fiqo.services.uinfo_service import UinfoService
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    dto = UserAndCompanyDTO(
+        user_id="user-1",
+        company_id="company-1",
+        username="TestUser",
+        subscription_level="STANDARD",
+        company_name="Universal Trading Coalition",
+        company_code="UTC",
+        rating="A",
+        created_epoch_ms=0,
+        faction="IC",
+        bases=[],
+        offices=[],
+    )
+
+    async def mock_identify_user_company_token(
+        ticker: str,
+        index: int,
+    ) -> tuple[str, list[tuple[str, UserAndCompanyDTO | None]]]:
+        if index == 0:
+            return (ticker, [("派系", None)])
+        if index == 1:
+            return (ticker, [("公司代码", dto)])
+        return (ticker, [("用户名", dto)])
+
+    monkeypatch.setattr(
+        GameInfoService,
+        "identify_user_company_token",
+        staticmethod(mock_identify_user_company_token),
+    )
+
+    result = asyncio.run(
+        UinfoService.resolve_company_code_from_nickname("IC丨UTC丨TestUser")
+    )
+
+    assert result == "UTC"
+
+
+def test_uinfo_service_resolves_username_from_nickname(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.models import UserAndCompanyDTO
+    from nonebot_plugin_fiqo.services.uinfo_service import UinfoService
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    dto = UserAndCompanyDTO(
+        user_id="user-1",
+        company_id="company-1",
+        username="TestUser",
+        subscription_level="STANDARD",
+        company_name="Universal Trading Coalition",
+        company_code="UTC",
+        rating="A",
+        created_epoch_ms=0,
+        faction="IC",
+        bases=[],
+        offices=[],
+    )
+
+    async def mock_identify_user_company_token(
+        ticker: str,
+        index: int,
+    ) -> tuple[str, list[tuple[str, UserAndCompanyDTO | None]]]:
+        if index == 0:
+            return (ticker, [("派系", None)])
+        if index == 1:
+            return (ticker, [("公司代码", dto)])
+        return (ticker, [("用户名", dto)])
+
+    monkeypatch.setattr(
+        GameInfoService,
+        "identify_user_company_token",
+        staticmethod(mock_identify_user_company_token),
+    )
+
+    result = asyncio.run(
+        UinfoService.resolve_username_from_nickname("IC丨UTC丨TestUser")
+    )
+
+    assert result == "TestUser"
 
 
 def test_recipe_dto_falls_back_when_standard_name_is_null():
