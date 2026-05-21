@@ -245,8 +245,7 @@ class UserAndCompanyDTO(FIQOBaseDTO):
     def handle_sub_level(cls, v: Any) -> str:
         return v if v else "TRIAL"
 
-    @model_validator(mode="after")
-    def post_process_data(self) -> "UserAndCompanyDTO":
+    def refresh_company_locations(self) -> "UserAndCompanyDTO":
         self.base_counts = len(self.bases)
         self.bases.sort(key=lambda p: p.natural_id)
 
@@ -260,6 +259,29 @@ class UserAndCompanyDTO(FIQOBaseDTO):
             key=lambda o: o.natural_id,
         )
         return self
+
+    @model_validator(mode="after")
+    def post_process_data(self) -> "UserAndCompanyDTO":
+        return self.refresh_company_locations()
+
+
+class FnarCompanyLookupDTO(FIQOBaseDTO):
+    company_name: str = Field(validation_alias="Name")
+    company_code: str = Field(validation_alias="Code")
+    username: str = Field(validation_alias="UserName")
+    faction: str = Field(validation_alias="CountryCode")
+    corporation_name: str | None = Field(
+        default=None, validation_alias="CorporationName"
+    )
+    corporation_code: str | None = Field(
+        default=None, validation_alias="CorporationCode"
+    )
+    rating: str = Field(validation_alias="OverallRating")
+    founded: datetime = Field(validation_alias="Founded")
+    bases: list[BasePlanetDTO] = Field(default_factory=list, validation_alias="Planets")
+    offices: list[OfficePlanetDTO] = Field(
+        default_factory=list, validation_alias="Offices"
+    )
 
 
 class PlanetResourceDTO(FIQOBaseDTO):

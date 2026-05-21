@@ -548,6 +548,82 @@ def test_recipe_dto_falls_back_when_standard_name_is_null():
     assert recipe.string_representation == "RIG:BAI 1"
 
 
+@pytest.mark.asyncio
+async def test_user_and_company_dto_uses_fnar_planets_and_offices(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client, fnar_fio_client
+    from nonebot_plugin_fiqo.models import UserAndCompanyDTO, FnarCompanyLookupDTO
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_user_and_company_info(
+        username: str | None = None,
+        company_name: str | None = None,
+        company_code: str | None = None,
+    ) -> UserAndCompanyDTO:
+        assert username is None
+        assert company_name is None
+        assert company_code == "EVOV"
+        return UserAndCompanyDTO(
+            user_id="user-1",
+            company_id="company-1",
+            username="EvoV",
+            subscription_level="STANDARD",
+            company_name="EvoV1980",
+            company_code="EVOV",
+            corporation_name="EvoSolo",
+            corporation_code="EVSL",
+            rating="A",
+            created_epoch_ms=0,
+            faction="IC",
+            bases=[],
+            offices=[],
+        )
+
+    async def mock_get_company_lookup(company_code: str) -> FnarCompanyLookupDTO:
+        assert company_code == "EVOV"
+        return FnarCompanyLookupDTO.model_validate(
+            {
+                "Name": "EvoV1980",
+                "Code": "EVOV",
+                "UserName": "EvoV",
+                "CountryCode": "IC",
+                "CorporationName": "EvoSolo",
+                "CorporationCode": "EVSL",
+                "OverallRating": "A",
+                "Founded": "2022-04-22T21:25:51.435Z",
+                "Planets": [
+                    {
+                        "PlanetName": "Lom Palanka",
+                        "PlanetNaturalId": "QJ-684a",
+                    },
+                    {
+                        "PlanetName": "IA-151a",
+                        "PlanetNaturalId": "IA-151a",
+                    },
+                ],
+                "Offices": [
+                    {
+                        "PlanetName": "ZV-307d",
+                        "PlanetNaturalId": "ZV-307d",
+                        "EndEpochMs": 0,
+                    }
+                ],
+            }
+        )
+
+    monkeypatch.setattr(
+        fio_client, "get_user_and_company_info", mock_get_user_and_company_info
+    )
+    monkeypatch.setattr(fnar_fio_client, "get_company_lookup", mock_get_company_lookup)
+
+    dto = await GameInfoService.get_user_and_company_dto(company_code="EVOV")
+
+    assert dto.base_counts == 2
+    assert [base.natural_id for base in dto.bases] == ["IA-151a", "QJ-684a"]
+    assert [office.natural_id for office in dto.offices] == ["ZV-307d"]
+
+
 def make_planner_planet(**overrides):
     from nonebot_plugin_fiqo.models import PlannerPlanetDTO
 

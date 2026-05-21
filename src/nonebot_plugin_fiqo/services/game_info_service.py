@@ -4,7 +4,7 @@ import asyncio
 from nonebot import logger
 from pydantic import ValidationError
 
-from nonebot_plugin_fiqo.api import fio_client, planner_client
+from nonebot_plugin_fiqo.api import fio_client, planner_client, fnar_fio_client
 from nonebot_plugin_fiqo.utils import global_formatter
 from nonebot_plugin_fiqo.config import plugin_config
 from nonebot_plugin_fiqo.models import (
@@ -163,6 +163,23 @@ class GameInfoService:
             )
         else:
             raise WrongUsernameOrCompanyTickerError("未知")
+
+        try:
+            fnar_response = await fnar_fio_client.get_company_lookup(
+                fio_response.company_code
+            )
+        except (
+            BadConnectionError,
+            ValidationError,
+            WrongUsernameOrCompanyTickerError,
+        ) as e:
+            logger.warning(
+                f"FNAR company lookup unavailable for {fio_response.company_code=}: {e}"
+            )
+        else:
+            fio_response.bases = fnar_response.bases
+            fio_response.offices = fnar_response.offices
+            fio_response.refresh_company_locations()
         return fio_response
 
     @staticmethod
