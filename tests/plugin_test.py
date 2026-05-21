@@ -184,6 +184,114 @@ async def test_fit(app: App, monkeypatch: pytest.MonkeyPatch):
         ctx.should_finished()
 
 
+@pytest.mark.asyncio
+async def test_co(app: App, monkeypatch: pytest.MonkeyPatch):
+    import nonebot
+    from nonebot.adapters.onebot.v11 import Bot, Message
+    from nonebot.adapters.onebot.v11 import Adapter as OnebotV11Adapter
+
+    event = fake_group_message_event_v11(message="co IC1")
+    try:
+        from nonebot_plugin_fiqo.commands.co import fiqo_co
+    except ImportError as e:
+        pytest.fail(f"Module co not found: {e}")
+
+    @staticmethod
+    async def mock_get_user_and_company_info(
+        username: str | None = None,
+        company_code: str | None = None,
+        company_name: str | None = None,
+    ) -> str:
+        assert username is None
+        assert company_code == "IC1"
+        assert company_name is None
+        return "公司：Insitor Cooperative\n代码：IC1"
+
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    monkeypatch.setattr(
+        GameInfoService, "get_user_and_company_info", mock_get_user_and_company_info
+    )
+
+    async with app.test_matcher(fiqo_co) as ctx:
+        adapter = nonebot.get_adapter(OnebotV11Adapter)
+        bot = ctx.create_bot(base=Bot, adapter=adapter)
+
+        for _ in range(3):
+            ctx.should_call_api(
+                "get_group_member_info",
+                {"group_id": 87654321, "user_id": 12345678},
+                {"role": "admin", "title": "", "level": "1"},
+            )
+
+        ctx.should_call_send(
+            event,
+            Message("用户与公司查询结果：\n公司：Insitor Cooperative\n代码：IC1"),
+            result=None,
+            bot=bot,
+        )
+        ctx.receive_event(bot, event)
+        ctx.should_finished()
+
+
+@pytest.mark.asyncio
+async def test_usr_with_mention(app: App, monkeypatch: pytest.MonkeyPatch):
+    import nonebot
+    from nonebot.adapters.onebot.v11 import Bot, Message, MessageSegment
+    from nonebot.adapters.onebot.v11 import Adapter as OnebotV11Adapter
+
+    event = fake_group_message_event_v11(
+        message=Message("usr ") + MessageSegment.at(87654321)
+    )
+    try:
+        from nonebot_plugin_fiqo.commands.usr import fiqo_usr
+    except ImportError as e:
+        pytest.fail(f"Module usr not found: {e}")
+
+    @staticmethod
+    async def mock_get_user_and_company_info(
+        username: str | None = None,
+        company_code: str | None = None,
+        company_name: str | None = None,
+    ) -> str:
+        assert username == "TestUser"
+        assert company_code is None
+        assert company_name is None
+        return "用户：TestUser\n公司：TEST"
+
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    monkeypatch.setattr(
+        GameInfoService, "get_user_and_company_info", mock_get_user_and_company_info
+    )
+
+    async with app.test_matcher(fiqo_usr) as ctx:
+        adapter = nonebot.get_adapter(OnebotV11Adapter)
+        bot = ctx.create_bot(base=Bot, adapter=adapter)
+
+        for _ in range(3):
+            ctx.should_call_api(
+                "get_group_member_info",
+                {"group_id": 87654321, "user_id": 12345678},
+                {"role": "admin", "title": "", "level": "1"},
+            )
+
+        ctx.should_call_api(
+            "get_group_member_info",
+            {"group_id": 87654321, "user_id": 87654321},
+            {"card": "TestUser", "nickname": "FallbackUser"},
+        )
+
+        ctx.should_call_send(
+            event,
+            Message("用户与公司查询结果：\n用户：TestUser\n公司：TEST"),
+            result=None,
+            bot=bot,
+        )
+        ctx.receive_event(bot, event)
+        ctx.should_finished()
+
+
 def test_fit_service_resolves_explicit_capacity_inputs():
     from nonebot_plugin_fiqo.services.fit_service import FitService
 
@@ -251,6 +359,23 @@ def test_fit_service_rejects_fitratio_invalid_amount():
 
     with pytest.raises(EvaluationError, match="无效的材料数量"):
         FitService.resolve_fitratio_inputs(["0AEF", "3000t", "1000m"], None)
+
+
+def test_recipe_dto_falls_back_when_standard_name_is_null():
+    from nonebot_plugin_fiqo.models import RecipeDTO
+
+    recipe = RecipeDTO.model_validate(
+        {
+            "StandardRecipeName": None,
+            "BuildingTicker": "RIG",
+            "RecipeName": "BAI-1",
+            "DurationMs": 60000,
+            "Inputs": [],
+            "Outputs": [],
+        }
+    )
+
+    assert recipe.string_representation == "RIG:BAI 1"
 
 
 def make_planner_planet(**overrides):

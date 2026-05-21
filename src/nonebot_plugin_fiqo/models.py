@@ -94,7 +94,7 @@ class RecipeDTO(FIQOBaseDTO):
             # /recipes/ does not return StandardRecipeName
             # instead manually assembled from BuildingTicker and RecipeName
             if (
-                "StandardRecipeName" not in data
+                not data.get("StandardRecipeName")
                 and "BuildingTicker" in data
                 and "RecipeName" in data
             ):
