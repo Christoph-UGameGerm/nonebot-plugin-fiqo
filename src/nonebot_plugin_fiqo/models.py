@@ -444,6 +444,17 @@ class SystemDTO(FIQOBaseDTO):
     meteoroid_density: float = Field(validation_alias="MeteoroidDensity")
 
 
+class SystemPlanetSummaryDTO(FIQOBaseDTO):
+    natural_id: str
+    name: str | None = None
+    cogc_type: str | None = None
+
+
+class SystemInfoDTO(FIQOBaseDTO):
+    system: SystemDTO
+    planets: list[SystemPlanetSummaryDTO] = Field(default_factory=list)
+
+
 class I18nDictDTO(BaseModel):
     translations: dict[str, str]
 

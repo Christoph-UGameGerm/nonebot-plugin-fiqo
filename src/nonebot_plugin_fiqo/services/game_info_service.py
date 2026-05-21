@@ -1,3 +1,4 @@
+import re
 import asyncio
 
 from nonebot import logger
@@ -8,10 +9,13 @@ from nonebot_plugin_fiqo.utils import global_formatter
 from nonebot_plugin_fiqo.config import plugin_config
 from nonebot_plugin_fiqo.models import (
     PlanetDTO,
+    SystemDTO,
     BuildingDTO,
     MaterialDTO,
     CXMaterialDTO,
+    SystemInfoDTO,
     UserAndCompanyDTO,
+    SystemPlanetSummaryDTO,
 )
 from nonebot_plugin_fiqo.exceptions import (
     I18nFetchError,
@@ -96,6 +100,50 @@ class GameInfoService:
     async def get_exchange_material_info(ticker: str, order_no: int) -> str:
         dto = await GameInfoService.get_exchange_material_dto(ticker)
         return global_formatter.format_cx_material(dto, order_no)
+
+    @staticmethod
+    async def get_system_dto(system_id_or_name: str) -> SystemDTO:
+        return await fio_client.get_system_info(system_id_or_name)
+
+    @staticmethod
+    async def get_system_info(system_id_or_name: str) -> str:
+        system = await GameInfoService.get_system_dto(system_id_or_name)
+        planets: list[SystemPlanetSummaryDTO] = []
+        try:
+            planner_planets = await planner_client.get_planet_info(system.natural_id)
+        except (BadConnectionError, PlanetNotFoundError, ValidationError) as e:
+            logger.warning(
+                f"Planner planet data unavailable for {system.natural_id=}: {e}"
+            )
+        else:
+            pattern = re.compile(rf"^{re.escape(system.natural_id)}[a-z]$")
+            filtered_planets = sorted(
+                (
+                    planet
+                    for planet in planner_planets
+                    if pattern.fullmatch(planet.natural_id)
+                ),
+                key=lambda planet: planet.natural_id,
+            )
+            for planet in filtered_planets:
+                cogc_type = planet.cogc_program.type if planet.cogc_program else None
+                if cogc_type is not None:
+                    try:
+                        cogc_type = await i18n_service.get_cogc_program_i18n_name(
+                            cogc_type
+                        )
+                    except I18nFetchError as e:
+                        logger.warning(f"CoGC program i18n unavailable: {e}")
+                planets.append(
+                    SystemPlanetSummaryDTO(
+                        natural_id=planet.natural_id,
+                        name=planet.name,
+                        cogc_type=cogc_type,
+                    )
+                )
+
+        dto = SystemInfoDTO(system=system, planets=planets)
+        return global_formatter.format_system_info(dto)
 
     @staticmethod
     async def get_user_and_company_dto(

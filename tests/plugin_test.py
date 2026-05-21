@@ -1051,3 +1051,216 @@ async def test_planet_dto_keeps_original_cogc_program_name_on_i18n_error(
     assert dto.cogc_status == "ACTIVE"
     assert dto.cogc_program is not None
     assert dto.cogc_program.type == "ORIGINAL"
+
+
+@pytest.mark.asyncio
+async def test_system_info_uses_system_dto(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client, planner_client
+    from nonebot_plugin_fiqo.models import SystemDTO, CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_system_info(system_id_or_name: str):
+        assert system_id_or_name == "VH-331"
+        return SystemDTO(
+            natural_id="VH-331",
+            name="Vallis Hydri",
+            meteoroid_density=0.25,
+        )
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "VH-331"
+        return [
+            make_planner_planet(
+                natural_id="VH-331a",
+                name="Katoa",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="ADVERTISING_AGRICULTURE",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    )
+                ],
+                active_cogc_program_type="ADVERTISING_AGRICULTURE",
+            ),
+            make_planner_planet(
+                natural_id="VH-331b",
+                name="Promitor",
+                cogc_programs=[],
+                active_cogc_program_type=None,
+            ),
+            make_planner_planet(
+                natural_id="VH-331",
+                name="NotAPlanet",
+            ),
+            make_planner_planet(
+                natural_id="VH-331aa",
+                name="NotAPlanetEither",
+            ),
+            make_planner_planet(
+                natural_id="ZZ-999a",
+                name="OtherSystem",
+            ),
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        assert program_name == "ADVERTISING_AGRICULTURE"
+        return "农业广告"
+
+    monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+
+    result = await GameInfoService.get_system_info("VH-331")
+
+    assert "编号：VH-331" in result
+    assert "名称：Vallis Hydri" in result
+    assert "小行星密度：0.25" in result
+    assert "星球：" in result
+    assert " - VH-331a Katoa - 农业广告" in result
+    assert " - VH-331b Promitor - 无" in result
+    assert "NotAPlanet" not in result
+    assert "OtherSystem" not in result
+
+
+@pytest.mark.asyncio
+async def test_system_info_supports_system_name_search_for_planets(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client, planner_client
+    from nonebot_plugin_fiqo.models import SystemDTO, CoGCProgramDTO
+    from nonebot_plugin_fiqo.services.i18n_service import i18n_service
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_system_info(system_id_or_name: str):
+        assert system_id_or_name == "Vallis Hydri"
+        return SystemDTO(
+            natural_id="VH-331",
+            name="Vallis Hydri",
+            meteoroid_density=0.25,
+        )
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "VH-331"
+        return [
+            make_planner_planet(
+                natural_id="VH-331a",
+                name="Katoa",
+                cogc_programs=[
+                    CoGCProgramDTO(
+                        type="ADVERTISING_AGRICULTURE",
+                        start_epoch_ms=1700000000000,
+                        end_epoch_ms=4102444800000,
+                    )
+                ],
+                active_cogc_program_type="ADVERTISING_AGRICULTURE",
+            )
+        ]
+
+    async def mock_get_cogc_program_i18n_name(program_name: str) -> str:
+        return "农业广告"
+
+    monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+    monkeypatch.setattr(
+        i18n_service, "get_cogc_program_i18n_name", mock_get_cogc_program_i18n_name
+    )
+
+    result = await GameInfoService.get_system_info("Vallis Hydri")
+
+    assert "编号：VH-331" in result
+    assert "名称：Vallis Hydri" in result
+    assert " - VH-331a Katoa - 农业广告" in result
+
+
+@pytest.mark.asyncio
+async def test_system_info_keeps_base_info_when_no_matching_planets(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client, planner_client
+    from nonebot_plugin_fiqo.models import SystemDTO
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_system_info(system_id_or_name: str):
+        assert system_id_or_name == "VH-331"
+        return SystemDTO(
+            natural_id="VH-331",
+            name="Vallis Hydri",
+            meteoroid_density=0.25,
+        )
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        assert name_or_id == "VH-331"
+        return [make_planner_planet(natural_id="VH-331aa", name="FilteredOut")]
+
+    monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+
+    result = await GameInfoService.get_system_info("VH-331")
+
+    assert "编号：VH-331" in result
+    assert "名称：Vallis Hydri" in result
+    assert "星球：" not in result
+
+
+@pytest.mark.asyncio
+async def test_system_info_keeps_base_info_when_planner_fails(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.api import fio_client, planner_client
+    from nonebot_plugin_fiqo.models import SystemDTO
+    from nonebot_plugin_fiqo.exceptions import BadConnectionError
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_system_info(system_id_or_name: str):
+        assert system_id_or_name == "VH-331"
+        return SystemDTO(
+            natural_id="VH-331",
+            name="Vallis Hydri",
+            meteoroid_density=0.25,
+        )
+
+    async def mock_get_planner_planet_info(name_or_id: str):
+        raise BadConnectionError("planner unavailable")
+
+    monkeypatch.setattr(fio_client, "get_system_info", mock_get_system_info)
+    monkeypatch.setattr(planner_client, "get_planet_info", mock_get_planner_planet_info)
+
+    result = await GameInfoService.get_system_info("VH-331")
+
+    assert "编号：VH-331" in result
+    assert "名称：Vallis Hydri" in result
+    assert "星球：" not in result
+
+
+def test_formatter_system_planet_list_omits_duplicate_name():
+    from nonebot_plugin_fiqo.models import SystemPlanetSummaryDTO
+    from nonebot_plugin_fiqo.utils.formatters import global_formatter
+
+    result = global_formatter.format_system_planet_list(
+        [
+            SystemPlanetSummaryDTO(
+                natural_id="VH-331a",
+                name="Katoa",
+                cogc_type="农业广告",
+            ),
+            SystemPlanetSummaryDTO(
+                natural_id="VH-331b",
+                name=None,
+                cogc_type=None,
+            ),
+            SystemPlanetSummaryDTO(
+                natural_id="VH-331c",
+                name="VH-331c",
+                cogc_type="无",
+            ),
+        ]
+    )
+
+    assert " - VH-331a Katoa - 农业广告" in result
+    assert " - VH-331b - 无" in result
+    assert " - VH-331c - 无" in result

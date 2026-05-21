@@ -23,12 +23,14 @@ from nonebot_plugin_fiqo.models import (
     BasePlanetDTO,
     CXMaterialDTO,
     ServiceResult,
+    SystemInfoDTO,
     CoGCProgramDTO,
     CostMaterialDTO,
     FitRatioItemDTO,
     OfficePlanetDTO,
     FitRatioResultDTO,
     UserAndCompanyDTO,
+    SystemPlanetSummaryDTO,
 )
 
 PLANET_RESOURCE_TYPE_LABELS = {
@@ -330,6 +332,30 @@ class Formatter:
             f"创建天数：{data.created_days}",
         ]
         return "\n".join(lines)
+
+    def format_system_info(self, data: SystemInfoDTO) -> str:
+        lines = [
+            f"编号：{data.system.natural_id}",
+            f"名称：{data.system.name}",
+            f"小行星密度：{data.system.meteoroid_density:.2f}",
+        ]
+        if data.planets:
+            lines.extend(["星球：", self.format_system_planet_list(data.planets)])
+        return "\n".join(lines)
+
+    def format_system_planet_list(self, data: list[SystemPlanetSummaryDTO]) -> str:
+        item_lead = self.config.list_item_lead
+        return "\n".join(
+            [
+                item_lead
+                + (
+                    f"{item.natural_id} {item.name} - {item.cogc_type or '无'}"
+                    if item.name and item.name != item.natural_id
+                    else f"{item.natural_id} - {item.cogc_type or '无'}"
+                )
+                for item in data
+            ]
+        )
 
     def format_service_result(
         self, result: ServiceResult, header: str, sep: str = "\n\n"
