@@ -788,6 +788,89 @@ def test_fit_service_calculates_fitratio(
     assert "运力预设：高负荷货舱套装 (WCB) 3000t/1000m³" in result
 
 
+def test_uinfo_service_builds_tasks_and_deduplicates(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.services.uinfo_service import UinfoService
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+
+    async def mock_get_user_and_company_info(
+        username: str | None = None,
+        company_code: str | None = None,
+        company_name: str | None = None,
+    ) -> str:
+        if username == "alice":
+            return "用户与公司A"
+        if company_code == "ALC":
+            return "用户与公司A"
+        if company_name == "Alice Corp":
+            return "用户与公司B"
+        raise AssertionError("unexpected lookup arguments")
+
+    monkeypatch.setattr(
+        GameInfoService,
+        "get_user_and_company_info",
+        staticmethod(mock_get_user_and_company_info),
+    )
+
+    result = asyncio.run(
+        UinfoService.get_uinfo_results(
+            username="alice",
+            company_code="ALC",
+            company_name="Alice Corp",
+        )
+    )
+
+    assert sorted(result.contents) == ["用户与公司A", "用户与公司B"]
+    assert result.warnings == []
+
+
+def test_verify_groupname_service_builds_report(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from nonebot_plugin_fiqo.models import UserAndCompanyDTO
+    from nonebot_plugin_fiqo.services.game_info_service import GameInfoService
+    from nonebot_plugin_fiqo.services.verify_groupname_service import (
+        VerifyGroupnameService,
+    )
+
+    dto = UserAndCompanyDTO(
+        user_id="user-1",
+        company_id="company-1",
+        username="alice",
+        subscription_level="STANDARD",
+        company_name="Alice Corp",
+        company_code="ALC",
+        rating="A",
+        created_epoch_ms=0,
+        faction="IC",
+        bases=[],
+        offices=[],
+    )
+
+    async def mock_identify_user_company_token(
+        ticker: str,
+        index: int,
+    ) -> tuple[str, list[tuple[str, UserAndCompanyDTO | None]]]:
+        if index == 0:
+            return (ticker, [("派系", None)])
+        return (ticker, [("用户名", dto)])
+
+    monkeypatch.setattr(
+        GameInfoService,
+        "identify_user_company_token",
+        staticmethod(mock_identify_user_company_token),
+    )
+
+    result = asyncio.run(VerifyGroupnameService.get_verification_report("IC丨alice"))
+
+    assert "分隔符警告" in result
+    assert "- 字段 'IC' 指向信息：派系" in result
+    assert "- 字段 'alice' 指向信息：用户名" in result
+    assert "用户名：alice" in result
+    assert "公司代码：ALC" in result
+
+
 @pytest.mark.asyncio
 async def test_planet_dto_raises_not_found_on_empty_planner_result(
     monkeypatch: pytest.MonkeyPatch,

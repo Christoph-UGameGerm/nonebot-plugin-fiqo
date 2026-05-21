@@ -9,10 +9,9 @@ from nonebot_plugin_alconna import (
 )
 
 from nonebot_plugin_fiqo.utils import (
-    execute_tasks,
     global_formatter,
 )
-from nonebot_plugin_fiqo.services import info_service
+from nonebot_plugin_fiqo.services import uinfo_service
 
 from .permissions import ADMIN
 
@@ -37,20 +36,13 @@ async def _(param: Arparma) -> None:
     company_name: list[str] | None = param.query[list[str]]("company_name")
     company_name_str = " ".join(company_name) if company_name else None
 
-    tasks = []
-    if username:
-        tasks.append(info_service.get_user_and_company_info(username=username))
-    if company_code:
-        tasks.append(info_service.get_user_and_company_info(company_code=company_code))
-    if company_name_str:
-        tasks.append(
-            info_service.get_user_and_company_info(company_name=company_name_str)
-        )
-    if not tasks:
+    result = await uinfo_service.get_uinfo_results(
+        username=username,
+        company_code=company_code,
+        company_name=company_name_str,
+    )
+    if not result.contents and not result.warnings:
         await fiqo_uinfo.finish("请至少提供用户名、公司代码或公司名称中的一个")
-
-    result = await execute_tasks(tasks)
-    result.contents = list(set(result.contents))
     response = global_formatter.format_service_result(
         result,
         header="用户与公司查询结果：\n",

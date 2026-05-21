@@ -1,5 +1,3 @@
-import asyncio
-
 from nonebot import logger
 from arclet.alconna import Arparma
 from nonebot.adapters import Bot, Event
@@ -15,11 +13,7 @@ from nonebot_plugin_alconna import (
 )
 from nonebot.adapters.onebot.v11 import Bot as OB11Bot
 
-from nonebot_plugin_fiqo.utils import (
-    global_formatter,
-    analyze_nickname_entities,
-)
-from nonebot_plugin_fiqo.services import info_service
+from nonebot_plugin_fiqo.services import verify_groupname_service
 
 from .permissions import SUPERUSER, get_group_member_info
 
@@ -58,18 +52,7 @@ async def _(
         user_nickname = " ".join(nickname).removeprefix("@") if nickname else None
     if not user_nickname:
         await fiqo_vg.finish("请提供需要验证的昵称或 @ 成员")
-
-    if symbol_warning := "丨" in user_nickname:
-        user_nickname = user_nickname.replace("丨", " | ")
-    nickname_fields = global_formatter.clean_and_partition_group_nickname(user_nickname)
-
-    tasks = [
-        info_service.identify_user_company_token(f, i)
-        for (i, f) in enumerate(nickname_fields)
-    ]
-    service_result = await asyncio.gather(*tasks)
-
-    best_dto, report_lines = analyze_nickname_entities(service_result)
+    report = await verify_groupname_service.get_verification_report(user_nickname)
 
     if isinstance(member, At):
         target = At("user", member.target)
@@ -78,21 +61,4 @@ async def _(
     response = (
         UniMessage.text("验证结果：\n") + UniMessage(target) + UniMessage.text("请查收")
     )
-
-    warning_header = [
-        "\n分隔符警告：昵称中包含 '丨'，建议使用两侧带空格的 '|' 作为分隔符。"
-        if symbol_warning
-        else None
-    ]
-    warning_header = "\n".join([h for h in warning_header if h]) + "\n"
-    final_header = (
-        response
-        + warning_header
-        + "\n".join(report_lines)
-        + "\n"
-        + global_formatter.format_user_company_key_info(best_dto)
-        if best_dto
-        else response + "\n暂无置信度足够的游戏内用户或公司信息"
-    )
-
-    await fiqo_vg.finish(final_header)
+    await fiqo_vg.finish(response + "\n" + report)
