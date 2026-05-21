@@ -106,7 +106,7 @@
 | FIQO__users__admin | 否 | 无 | 开发组权限白名单 |
 | FIQO__users__superusers | 否 | 无 | 超级用户权限白名单。群主/群管理员自动归入该权限组
 | FIQO__users__testusers | 否 | 无 | 测试用户权限白名单
-| FIQO__users__group_level_threshold | 否 | 5 | 普通用户权限的群内等级最低限制。普通用户的准入条件为群等级高于该限制 **或** 拥有群头衔 |
+| FIQO__users__group_level_threshold | 否 | 3 | 普通用户权限的群内等级最低限制。普通用户的准入条件为群等级高于该限制 **或** 拥有群头衔 |
 
 以下配置管理该插件返回消息的格式。控制插件的合并转发行为等。
 

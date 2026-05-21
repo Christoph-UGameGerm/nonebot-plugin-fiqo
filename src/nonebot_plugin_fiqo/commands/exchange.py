@@ -34,7 +34,7 @@ fiqo_exchange = on_alconna(
         meta=CommandMeta(
             description="[普通用户] 查询交易所物品信息",
             usage="/cx <ticker>",
-            example="/cx RAT",
+            example="/cx RAT.IC1",
         ),
     ),
     extensions=[OB11GroupFwdExtension()],

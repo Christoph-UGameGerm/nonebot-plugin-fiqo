@@ -22,7 +22,7 @@ class Users(BaseModel):
     admin: list[str] = Field(default_factory=list)
     superusers: list[str] = Field(default_factory=list)
     testusers: list[str] = Field(default_factory=list)
-    group_level_threshold: int = 5
+    group_level_threshold: int = 3
 
 
 class GameInfoConfig(BaseModel):
