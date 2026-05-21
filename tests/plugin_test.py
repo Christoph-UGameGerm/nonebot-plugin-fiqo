@@ -566,7 +566,7 @@ async def test_user_and_company_dto_uses_fnar_planets_and_offices(
         assert company_code == "EVOV"
         return UserAndCompanyDTO(
             user_id="user-1",
-            company_id="company-1",
+            company_id="318869ca42834cc68ef07477d8310cee",
             username="EvoV",
             subscription_level="STANDARD",
             company_name="EvoV1980",
@@ -580,8 +580,8 @@ async def test_user_and_company_dto_uses_fnar_planets_and_offices(
             offices=[],
         )
 
-    async def mock_get_company_lookup(company_code: str) -> FnarCompanyLookupDTO:
-        assert company_code == "EVOV"
+    async def mock_get_company_lookup(company_id: str) -> FnarCompanyLookupDTO:
+        assert company_id == "318869ca42834cc68ef07477d8310cee"
         return FnarCompanyLookupDTO.model_validate(
             {
                 "Name": "EvoV1980",

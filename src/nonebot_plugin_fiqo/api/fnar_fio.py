@@ -20,16 +20,16 @@ class FnarFioClient(BaseClient):
         super().__init__(base_url=ENDPOINTS.base_url, timeout=10)
         self.client.headers.update({"User-Agent": "CommunityBot/FnarFioClient"})
 
-    async def get_company_lookup(self, company_code: str) -> FnarCompanyLookupDTO:
-        not_found_error = WrongUsernameOrCompanyTickerError(company_code)
+    async def get_company_lookup(self, company_id: str) -> FnarCompanyLookupDTO:
+        not_found_error = WrongUsernameOrCompanyTickerError(company_id)
         response = await self.request(
             key_and_model=(
-                f"fnar:company_lookup:{company_code}",
+                f"fnar:company_lookup:{company_id}",
                 list[FnarCompanyLookupDTO | None],
             ),
             endpoint=ENDPOINTS.company_lookup,
             params={
-                "company": company_code,
+                "company": company_id,
                 "include_planets": "true",
                 "include_offices": "true",
             },

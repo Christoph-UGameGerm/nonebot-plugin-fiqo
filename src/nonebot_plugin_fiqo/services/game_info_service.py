@@ -166,7 +166,7 @@ class GameInfoService:
 
         try:
             fnar_response = await fnar_fio_client.get_company_lookup(
-                fio_response.company_code
+                fio_response.company_id
             )
         except (
             BadConnectionError,
@@ -174,7 +174,7 @@ class GameInfoService:
             WrongUsernameOrCompanyTickerError,
         ) as e:
             logger.warning(
-                f"FNAR company lookup unavailable for {fio_response.company_code=}: {e}"
+                f"FNAR company lookup unavailable for {fio_response.company_id=}: {e}"
             )
         else:
             fio_response.bases = fnar_response.bases
